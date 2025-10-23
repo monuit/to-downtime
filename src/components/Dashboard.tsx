@@ -1,6 +1,5 @@
 import { useState, useMemo } from 'react'
 import { useDisruptionStore } from '../store/disruptions'
-import { useTorontoVisualization } from '../hooks/useTorontoVisualization'
 import '../styles/Dashboard.css'
 
 interface DashboardProps {
@@ -9,11 +8,8 @@ interface DashboardProps {
 
 export const Dashboard: React.FC<DashboardProps> = ({ onFilterChange }) => {
   const disruptions = useDisruptionStore((state) => state.disruptions)
-  const { routes, restrictions, alerts, stats: vizStats, colorScheme, updateColorScheme } = useTorontoVisualization()
   const [filterMode, setFilterMode] = useState<'all' | 'live'>('live')
   const [selectedSeverity, setSelectedSeverity] = useState<string | null>(null)
-  const [showRoutesLayer, setShowRoutesLayer] = useState(true)
-  const [showRestrictionsLayer, setShowRestrictionsLayer] = useState(true)
 
   // Filter disruptions
   const filteredDisruptions = useMemo(() => {
@@ -93,55 +89,37 @@ export const Dashboard: React.FC<DashboardProps> = ({ onFilterChange }) => {
 
         <div className="status-metrics">
           <div className="metric">
-            <div className="metric-label">Transit Routes</div>
-            <div className="metric-value">{vizStats.totalRoutes}</div>
+            <div className="metric-label">Total Disruptions</div>
+            <div className="metric-value">{stats.total}</div>
           </div>
 
           <div className="metric">
-            <div className="metric-label">Active Restrictions</div>
-            <div className="metric-value">{vizStats.totalRestrictions}</div>
+            <div className="metric-label">Active Now</div>
+            <div className="metric-value">{stats.active}</div>
           </div>
 
           <div className="metric">
-            <div className="metric-label">Avg. Frequency</div>
-            <div className="metric-value">{vizStats.averageFrequency}</div>
+            <div className="metric-label">Severe</div>
+            <div className="metric-value" style={{ color: '#ff4444' }}>{stats.bySeverity.severe || 0}</div>
           </div>
         </div>
 
-        {/* Visualization Controls */}
+        {/* Severity Breakdown */}
         <div className="analyzer-section">
-          <h3>Visualization Layers</h3>
-          <div className="layer-toggles">
-            <label className="toggle-item">
-              <input
-                type="checkbox"
-                checked={showRoutesLayer}
-                onChange={(e) => setShowRoutesLayer(e.target.checked)}
-              />
-              <span>🚇 Transit Routes ({vizStats.totalRoutes})</span>
-            </label>
-            <label className="toggle-item">
-              <input
-                type="checkbox"
-                checked={showRestrictionsLayer}
-                onChange={(e) => setShowRestrictionsLayer(e.target.checked)}
-              />
-              <span>🛣️ Road Restrictions ({vizStats.totalRestrictions})</span>
-            </label>
-          </div>
-
-          <h3 style={{ marginTop: '16px' }}>Color Scheme</h3>
-          <div className="scheme-selector">
-            {['default', 'pastel', 'inferno', 'earthy', 'cool'].map((scheme) => (
-              <button
-                key={scheme}
-                className={`scheme-btn ${colorScheme === scheme ? 'active' : ''}`}
-                onClick={() => updateColorScheme(scheme)}
-                title={scheme}
-              >
-                {scheme.charAt(0).toUpperCase() + scheme.slice(1)}
-              </button>
-            ))}
+          <h3>By Severity</h3>
+          <div className="severity-breakdown">
+            <div className="severity-item severe">
+              <span>Severe</span>
+              <span className="count">{stats.bySeverity.severe || 0}</span>
+            </div>
+            <div className="severity-item moderate">
+              <span>Moderate</span>
+              <span className="count">{stats.bySeverity.moderate || 0}</span>
+            </div>
+            <div className="severity-item minor">
+              <span>Minor</span>
+              <span className="count">{stats.bySeverity.minor || 0}</span>
+            </div>
           </div>
         </div>
 

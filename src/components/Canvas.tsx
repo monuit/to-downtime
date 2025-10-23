@@ -1,25 +1,26 @@
 import { useEffect, useRef } from 'react'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
-import gsap from 'gsap'
 import { useDisruptionStore } from '../store/disruptions'
-import { useTorontoVisualization } from '../hooks/useTorontoVisualization'
 import { latLonToPlane, TORONTO_LAT, TORONTO_LON, randomPointNearby } from '../utils/mercator'
-import { PingsSystem } from '../utils/pingsSystem'
-import { RippleRingsSystem } from '../utils/ripplesSystem'
+
+interface DisruptionPoint {
+  position: THREE.Vector3
+  severity: 'severe' | 'moderate' | 'minor'
+  intensity: number
+}
 
 export const Canvas: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null)
   const disruptions = useDisruptionStore((state) => state.disruptions)
-  const { routes, restrictions, colorScheme } = useTorontoVisualization()
 
   useEffect(() => {
     if (!containerRef.current) return
 
-    // Scene setup
+    // Scene setup - clean minimal style
     const scene = new THREE.Scene()
     scene.background = new THREE.Color(0x0a0e27)
-    scene.fog = new THREE.Fog(0x0a0e27, 500, 2000)
+    scene.fog = new THREE.Fog(0x0a0e27, 1000, 3000)
 
     const camera = new THREE.PerspectiveCamera(
       75,
@@ -29,7 +30,7 @@ export const Canvas: React.FC = () => {
     )
 
     const torontoPosPlane = latLonToPlane(TORONTO_LAT, TORONTO_LON)
-    camera.position.set(torontoPosPlane.x, 150, torontoPosPlane.y + 120)
+    camera.position.set(torontoPosPlane.x, 200, torontoPosPlane.y + 200)
     camera.lookAt(torontoPosPlane.x, 0, torontoPosPlane.y)
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true })
@@ -38,23 +39,23 @@ export const Canvas: React.FC = () => {
     renderer.shadowMap.enabled = true
     containerRef.current.appendChild(renderer.domElement)
 
-    // Orbit controls for pan/zoom
+    // Orbit controls
     const controls = new OrbitControls(camera, renderer.domElement)
     controls.enableDamping = true
     controls.dampingFactor = 0.05
     controls.autoRotate = true
-    controls.autoRotateSpeed = 0.3
-    controls.minDistance = 50
-    controls.maxDistance = 800
+    controls.autoRotateSpeed = 0.2
+    controls.minDistance = 100
+    controls.maxDistance = 1200
     controls.target.set(torontoPosPlane.x, 0, torontoPosPlane.y)
     controls.update()
 
     // Lighting
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.5)
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6)
     scene.add(ambientLight)
 
     const directionalLight = new THREE.DirectionalLight(0xffffff, 1.0)
-    directionalLight.position.set(300, 400, 300)
+    directionalLight.position.set(300, 500, 300)
     directionalLight.castShadow = true
     directionalLight.shadow.mapSize.width = 2048
     directionalLight.shadow.mapSize.height = 2048
@@ -64,28 +65,31 @@ export const Canvas: React.FC = () => {
     directionalLight.shadow.camera.bottom = -500
     scene.add(directionalLight)
 
-    // Mercator map plane
+    // Clean map plane with subtle texture
     const mapGeometry = new THREE.PlaneGeometry(4096, 2048)
     const mapCanvas = document.createElement('canvas')
-    mapCanvas.width = 1024
-    mapCanvas.height = 512
+    mapCanvas.width = 512
+    mapCanvas.height = 256
     const ctx = mapCanvas.getContext('2d')!
 
-    // Create gradient map texture
-    const gradient = ctx.createLinearGradient(0, 0, 1024, 512)
-    gradient.addColorStop(0, '#1a3a5c')
-    gradient.addColorStop(0.5, '#2d5a8c')
-    gradient.addColorStop(1, '#1a3a5c')
-    ctx.fillStyle = gradient
-    ctx.fillRect(0, 0, 1024, 512)
+    // Solid subtle background
+    ctx.fillStyle = '#0f1a2e'
+    ctx.fillRect(0, 0, 512, 256)
 
-    // Add some landmass-like patterns
-    ctx.fillStyle = '#0f2540'
-    for (let i = 0; i < 50; i++) {
-      const x = Math.random() * 1024
-      const y = Math.random() * 512
-      const size = Math.random() * 80 + 20
-      ctx.fillRect(x, y, size, size)
+    // Grid pattern (subtle)
+    ctx.strokeStyle = 'rgba(100, 150, 200, 0.08)'
+    ctx.lineWidth = 1
+    for (let i = 0; i <= 512; i += 64) {
+      ctx.beginPath()
+      ctx.moveTo(i, 0)
+      ctx.lineTo(i, 256)
+      ctx.stroke()
+    }
+    for (let i = 0; i <= 256; i += 64) {
+      ctx.beginPath()
+      ctx.moveTo(0, i)
+      ctx.lineTo(512, i)
+      ctx.stroke()
     }
 
     const mapTexture = new THREE.CanvasTexture(mapCanvas)
@@ -93,211 +97,128 @@ export const Canvas: React.FC = () => {
 
     const mapMaterial = new THREE.MeshPhongMaterial({
       map: mapTexture,
-      emissive: 0x1a4a6c,
-      emissiveIntensity: 0.3,
+      emissive: 0x0f1a2e,
+      emissiveIntensity: 0.2,
     })
     const mapMesh = new THREE.Mesh(mapGeometry, mapMaterial)
     mapMesh.receiveShadow = true
-    mapMesh.position.z = -1
+    mapMesh.position.z = -5
     scene.add(mapMesh)
 
-    // Create group for routes and restrictions
-    const dataVisualizationGroup = new THREE.Group()
-    scene.add(dataVisualizationGroup)
+    // Heatmap group
+    const heatmapGroup = new THREE.Group()
+    scene.add(heatmapGroup)
 
-    // Helper function to render transit routes as 3D tubes
-    const renderRoutes = () => {
-      // Clear previous routes
-      dataVisualizationGroup.children
-        .filter((child) => child.userData.type === 'route')
-        .forEach((child) => {
-          dataVisualizationGroup.remove(child)
-          if (child instanceof THREE.Mesh) {
-            child.geometry.dispose()
-            if (Array.isArray(child.material)) {
-              child.material.forEach((m) => m.dispose())
-            } else {
-              child.material.dispose()
-            }
-          }
-        })
+    // Create heatmap particles from disruptions
+    const updateHeatmap = () => {
+      // Clear previous heatmap
+      heatmapGroup.clear()
 
-      // Render each route
-      routes.forEach((route) => {
-        // Convert lat/lon coordinates to plane coordinates
-        const pathPoints = route.coordinates.map((coord) => {
-          const planePos = latLonToPlane(coord.lat, coord.lon)
-          return new THREE.Vector3(planePos.x, 5, planePos.y)
-        })
+      if (disruptions.length === 0) return
 
-        if (pathPoints.length < 2) return
-
-        // Create curve from points
-        const curve = new THREE.CatmullRomCurve3(pathPoints)
-        const points = curve.getPoints(50)
-
-        // Calculate frequency-based thickness (logarithmic scale)
-        const baseWidth = Math.log(route.frequency + 1.7) * 2
-        const opacity = 0.4 + (route.frequency / 30) * 0.6
-
-        // Create tube geometry
-        const tubeCurve = new THREE.CatmullRomCurve3(points)
-        const tubeGeometry = new THREE.TubeGeometry(tubeCurve, 20, baseWidth, 8, false)
-
-        // Parse color
-        const color = new THREE.Color(route.color)
-
-        const tubeMaterial = new THREE.MeshPhongMaterial({
-          color: color,
-          emissive: color,
-          emissiveIntensity: 0.3,
-          transparent: true,
-          opacity: opacity,
-          wireframe: false,
-        })
-
-        const tubeMesh = new THREE.Mesh(tubeGeometry, tubeMaterial)
-        tubeMesh.castShadow = true
-        tubeMesh.receiveShadow = true
-        tubeMesh.userData.type = 'route'
-        tubeMesh.userData.routeId = route.routeId
-        tubeMesh.userData.routeName = route.routeName
-
-        dataVisualizationGroup.add(tubeMesh)
-      })
-    }
-
-    // Helper function to render road restrictions
-    const renderRestrictions = () => {
-      // Clear previous restrictions
-      dataVisualizationGroup.children
-        .filter((child) => child.userData.type === 'restriction')
-        .forEach((child) => {
-          dataVisualizationGroup.remove(child)
-          if (child instanceof THREE.Mesh) {
-            child.geometry.dispose()
-            if (Array.isArray(child.material)) {
-              child.material.forEach((m) => m.dispose())
-            } else {
-              child.material.dispose()
-            }
-          }
-        })
-
-      // Render each restriction as a cylinder marker
-      restrictions.forEach((restriction) => {
-        const planePos = latLonToPlane(restriction.coordinates.lat, restriction.coordinates.lon)
-
-        // Color by severity
-        const severityColors: Record<string, string> = {
-          severe: '#ff4444',
-          moderate: '#ffaa00',
-          minor: '#44ff44',
-        }
-
-        const cylinderGeometry = new THREE.CylinderGeometry(8, 8, 20, 16)
-        const cylinderMaterial = new THREE.MeshPhongMaterial({
-          color: new THREE.Color(severityColors[restriction.severity] || '#ffff00'),
-          emissive: new THREE.Color(severityColors[restriction.severity] || '#ffff00'),
-          emissiveIntensity: 0.5,
-          transparent: true,
-          opacity: 0.7,
-        })
-
-        const cylinderMesh = new THREE.Mesh(cylinderGeometry, cylinderMaterial)
-        cylinderMesh.position.set(planePos.x, 10, planePos.y)
-        cylinderMesh.castShadow = true
-        cylinderMesh.receiveShadow = true
-        cylinderMesh.userData.type = 'restriction'
-        cylinderMesh.userData.restrictionId = restriction.id
-        cylinderMesh.userData.severity = restriction.severity
-
-        dataVisualizationGroup.add(cylinderMesh)
-      })
-    }
-
-    // Initial render
-    renderRoutes()
-    renderRestrictions()
-
-    // Ripple rings (Toronto-centered anomaly)
-    const ripplesSystem = new RippleRingsSystem()
-    ripplesSystem.getGroup().position.set(torontoPosPlane.x, 0, torontoPosPlane.y)
-    scene.add(ripplesSystem.getGroup())
-
-    // Pings system (disruption indicators)
-    const pingsSystem = new PingsSystem(5000)
-    scene.add(pingsSystem.getMesh())
-
-    // Cinematic opening timeline
-    const openingTL = gsap.timeline()
-    openingTL.to(
-      camera.position,
-      {
-        x: torontoPosPlane.x,
-        y: 120,
-        z: torontoPosPlane.y + 100,
-        duration: 3.5,
-        ease: 'power2.inOut',
-      },
-      0
-    )
-    openingTL.to(
-      ambientLight,
-      {
-        intensity: 0.8,
-        duration: 2,
-        ease: 'power1.inOut',
-      },
-      0.5
-    )
-
-    // Update disruptions as pings on the map
-    const updateDisruptions = () => {
-      const activePings: Array<{
-        position: THREE.Vector3
-        phase: number
-        intensity: number
-      }> = []
-
-      disruptions.forEach((disruption, index) => {
-        // Place disruptions randomly within 200km of Toronto
-        const location = randomPointNearby(TORONTO_LAT, TORONTO_LON, 200)
+      // Collect disruption points
+      const points: DisruptionPoint[] = disruptions.map((disruption) => {
+        const location = randomPointNearby(TORONTO_LAT, TORONTO_LON, 250)
         const planePos = latLonToPlane(location.lat, location.lon)
 
-        const severityMap: Record<string, number> = {
+        const severityIntensity: Record<string, number> = {
           severe: 1.0,
           moderate: 0.6,
           minor: 0.3,
         }
 
-        activePings.push({
-          position: new THREE.Vector3(planePos.x, 8, planePos.y),
-          phase: Math.random(),
-          intensity: severityMap[disruption.severity] ?? 0.5,
-        })
-
-        // Trigger alert on severe disruptions
-        if (disruption.severity === 'severe' && index === 0) {
-          ripplesSystem.triggerAlert(1.2)
+        return {
+          position: new THREE.Vector3(planePos.x, 15, planePos.y),
+          severity: disruption.severity as 'severe' | 'moderate' | 'minor',
+          intensity: severityIntensity[disruption.severity] ?? 0.5,
         }
       })
 
-      pingsSystem.updatePings(activePings)
+      // Create heatmap using particles with gaussian falloff
+      const particleCount = points.length * 20
+      const geometry = new THREE.BufferGeometry()
+      const positions = new Float32Array(particleCount * 3)
+      const colors = new Float32Array(particleCount * 3)
+      const sizes = new Float32Array(particleCount)
 
-      // Calculate and set ripple intensity
-      const avgIntensity =
-        disruptions.reduce((sum, d) => {
-          return (
-            sum +
-            (d.severity === 'severe' ? 1.0 : d.severity === 'moderate' ? 0.6 : 0.3)
-          )
-        }, 0) / Math.max(disruptions.length, 1)
+      let index = 0
 
-      ripplesSystem.setIntensity(avgIntensity)
+      // Color palette for severity
+      const severityColors = {
+        severe: { r: 1.0, g: 0.26, b: 0.26 },
+        moderate: { r: 1.0, g: 0.66, b: 0.0 },
+        minor: { r: 0.26, g: 1.0, b: 0.26 },
+      }
+
+      points.forEach((point) => {
+        const color = severityColors[point.severity]
+        const spreadRadius = 100
+
+        // Create gaussian distribution around each point
+        for (let i = 0; i < 20; i++) {
+          const angle = Math.random() * Math.PI * 2
+          const distance = Math.random() * spreadRadius * point.intensity
+          const x = point.position.x + Math.cos(angle) * distance
+          const y = point.position.y
+          const z = point.position.z + Math.sin(angle) * distance
+
+          positions[index * 3] = x
+          positions[index * 3 + 1] = y
+          positions[index * 3 + 2] = z
+
+          // Fade out at distance
+          const distanceFade = 1 - distance / (spreadRadius * point.intensity)
+
+          colors[index * 3] = color.r
+          colors[index * 3 + 1] = color.g
+          colors[index * 3 + 2] = color.b
+
+          sizes[index] = (20 * distanceFade * point.intensity) / 2
+
+          index++
+        }
+      })
+
+      geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3))
+      geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3))
+      geometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1))
+
+      const material = new THREE.PointsMaterial({
+        size: 1,
+        vertexColors: true,
+        transparent: true,
+        opacity: 0.6,
+        sizeAttenuation: true,
+      })
+
+      const particles = new THREE.Points(geometry, material)
+      heatmapGroup.add(particles)
+
+      // Also add bright core markers at each disruption point
+      points.forEach((point) => {
+        const color = severityColors[point.severity]
+        const coreGeometry = new THREE.SphereGeometry(3, 8, 8)
+        const coreMaterial = new THREE.MeshBasicMaterial({
+          color: new THREE.Color(color.r, color.g, color.b),
+        })
+        const coreMesh = new THREE.Mesh(coreGeometry, coreMaterial)
+        coreMesh.position.copy(point.position)
+        heatmapGroup.add(coreMesh)
+
+        // Glow effect with larger sphere
+        const glowGeometry = new THREE.SphereGeometry(12, 8, 8)
+        const glowMaterial = new THREE.MeshBasicMaterial({
+          color: new THREE.Color(color.r, color.g, color.b),
+          transparent: true,
+          opacity: 0.15,
+        })
+        const glowMesh = new THREE.Mesh(glowGeometry, glowMaterial)
+        glowMesh.position.copy(point.position)
+        heatmapGroup.add(glowMesh)
+      })
     }
 
-    updateDisruptions()
+    updateHeatmap()
 
     // Animation loop
     let animationId: number
@@ -308,8 +229,13 @@ export const Canvas: React.FC = () => {
       const delta = clock.getDelta()
 
       controls.update()
-      pingsSystem.update(delta)
-      ripplesSystem.update(delta)
+
+      // Subtle animation of particles
+      heatmapGroup.children.forEach((child) => {
+        if (child instanceof THREE.Points) {
+          child.rotation.z += delta * 0.05
+        }
+      })
 
       renderer.render(scene, camera)
     }
@@ -325,19 +251,17 @@ export const Canvas: React.FC = () => {
 
     window.addEventListener('resize', handleResize)
 
-    // Update on disruption changes
-    updateDisruptions()
+    // Update heatmap when disruptions change
+    updateHeatmap()
 
     return () => {
       cancelAnimationFrame(animationId)
       window.removeEventListener('resize', handleResize)
       controls.dispose()
-      pingsSystem.dispose()
-      ripplesSystem.dispose()
       renderer.dispose()
       containerRef.current?.removeChild(renderer.domElement)
     }
-  }, [disruptions, routes, restrictions, colorScheme])
+  }, [disruptions])
 
   return (
     <div
