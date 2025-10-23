@@ -126,7 +126,7 @@ app.use(express.static(distPath, {
 }))
 
 // All other routes serve index.html (SPA fallback) - must be last
-app.get('*', (req, res) => {
+app.get(/.*/, (req, res) => {
   console.log('📍 SPA fallback: serving index.html for', req.path)
   res.sendFile(path.join(distPath, 'index.html'))
 })
