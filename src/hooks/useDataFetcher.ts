@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { Disruption } from '../store/disruptions'
+import { fetchAllDisruptionData } from '../server/api-client'
 
 interface DataFetcherResult {
   data: Disruption[] | null
@@ -16,20 +17,18 @@ const getRandomRefreshInterval = (minMs: number = 5000, maxMs: number = 30000): 
 }
 
 /**
- * Fetch disruptions from backend API
- * API fetches from multiple sources:
+ * Fetch disruptions from live APIs
+ * Sources:
  * - TTC GTFS Realtime
  * - Toronto Open Data (Road Restrictions)
  * - Toronto Open Data (Transit Alerts)
  */
 const fetchDisruptionData = async (): Promise<Disruption[]> => {
   try {
-    const response = await fetch('/api/sync')
-    if (!response.ok) throw new Error(`API error: ${response.statusText}`)
-    const json = await response.json()
-    return json.disruptions || []
+    const result = await fetchAllDisruptionData()
+    return result
   } catch (error) {
-    console.error('Failed to fetch disruptions from API:', error)
+    console.error('Failed to fetch disruptions:', error)
     return []
   }
 }
