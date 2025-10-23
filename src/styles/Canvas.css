@@ -1,7 +1,7 @@
 .canvas-container {
   width: 100%;
   height: 100%;
-  padding: 20px;
+  padding: 12px;
   overflow-y: auto;
   background: #0a0a0a;
 }
@@ -9,13 +9,13 @@
 .disruptions-grid {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 10px;
   max-width: 100%;
 }
 
 .disruption-card {
-  padding: 16px;
-  border-radius: 8px;
+  padding: 12px;
+  border-radius: 6px;
   transition: all 0.2s ease;
   backdrop-filter: blur(8px);
 }
@@ -28,46 +28,46 @@
 .card-header {
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin-bottom: 12px;
+  gap: 10px;
+  margin-bottom: 8px;
 }
 
 .emoji {
-  font-size: 24px;
+  font-size: 20px;
   line-height: 1;
 }
 
 .type {
   font-weight: 600;
-  font-size: 12px;
-  letter-spacing: 0.5px;
+  font-size: 11px;
+  letter-spacing: 0.4px;
   text-transform: uppercase;
   color: #a0aec0;
 }
 
 .severity {
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 700;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.4px;
   margin-left: auto;
 }
 
 .card-body {
-  margin-bottom: 12px;
+  margin-bottom: 8px;
 }
 
 .description {
-  font-size: 14px;
-  line-height: 1.5;
+  font-size: 13px;
+  line-height: 1.4;
   color: #e2e8f0;
   word-wrap: break-word;
 }
 
 .affected-lines {
-  font-size: 12px;
+  font-size: 11px;
   color: #cbd5e0;
-  margin-top: 8px;
-  padding-top: 8px;
+  margin-top: 6px;
+  padding-top: 6px;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
 }
 
@@ -78,7 +78,7 @@
 .card-footer {
   display: flex;
   justify-content: flex-end;
-  font-size: 12px;
+  font-size: 10px;
   color: #a0aec0;
 }
 
@@ -88,42 +88,42 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  min-height: 300px;
+  min-height: 200px;
   color: #a0aec0;
 }
 
 .empty-icon {
-  font-size: 48px;
-  margin-bottom: 16px;
+  font-size: 32px;
+  margin-bottom: 10px;
   opacity: 0.6;
 }
 
 .empty-text {
-  font-size: 18px;
+  font-size: 14px;
   font-weight: 600;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
 }
 
 .empty-subtext {
-  font-size: 14px;
+  font-size: 12px;
   color: #718096;
 }
 
 @media (max-width: 768px) {
   .canvas-container {
-    padding: 12px;
+    padding: 10px;
   }
 
   .disruptions-grid {
     grid-template-columns: 1fr;
-    gap: 12px;
-  }
-
-  .card-header {
     gap: 8px;
   }
 
+  .card-header {
+    gap: 6px;
+  }
+
   .emoji {
-    font-size: 20px;
+    font-size: 16px;
   }
 }
