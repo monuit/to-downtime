@@ -12,6 +12,7 @@ import express from 'express'
 import cors from 'cors'
 import path from 'path'
 import { fileURLToPath } from 'url'
+import { existsSync } from 'fs'
 import { getAllDisruptions } from './db.js'
 import { fetchAllLiveDataWithMetadata } from './live-data.js'
 import { etlScheduler } from './etl-scheduler.js'
@@ -28,6 +29,11 @@ const distPath = process.env.NODE_ENV === 'production'
   : path.resolve(path.join(__dirname, '../../dist')) // Local development path
 
 console.log('📁 Using dist path:', distPath)
+console.log('📁 Dist folder exists:', existsSync(distPath))
+if (!existsSync(distPath)) {
+  console.log('⚠️  WARNING: dist folder does not exist! This will cause 404 errors.')
+  console.log('   Make sure npm run build was executed before starting the server.')
+}
 
 // Middleware
 app.use(cors())
