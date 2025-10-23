@@ -237,13 +237,15 @@ const parseGTFSAlert = (alert: any, sourceUrl: string): Disruption | null => {
       }
     }
 
-    // Generate external ID
-    const externalId = alert.id || 
-                      alert.alert?.id || 
-                      `ttc-alert-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+    // Generate external ID - use alert.id directly if available
+    // Alert IDs from GTFS-RT may or may not have "ttc-" prefix
+    const alertId = alert.id || alert.alert?.id
+    const externalId = alertId 
+      ? `ttc-${alertId}`.replace(/^ttc-ttc-/, 'ttc-') // Prevent double "ttc-" prefix
+      : `ttc-generated-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
 
     return {
-      id: `ttc-${externalId}`,
+      id: externalId,
       type,
       severity,
       title: headerText.trim(),

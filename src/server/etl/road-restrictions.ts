@@ -137,15 +137,17 @@ const parseRoadRestriction = (record: any, sourceUrl: string): Disruption | null
       severity = 'moderate'
     }
 
-    // Generate external ID
-    const externalId = record.id || 
-                      `road-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+    // Generate external ID - use record.id directly if available
+    // Record IDs from API look like: "Tor-RD012025-279", "Tor-RD1S2025-221-1"
+    const externalId = record.id 
+      ? `road-${record.id}` 
+      : `road-generated-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
 
     // Parse dates (timestamps in milliseconds)
     const startDate = record.startTime ? parseInt(record.startTime) : Date.now()
 
     return {
-      id: `road-${externalId}`,
+      id: externalId,
       type: 'road',
       severity,
       title: `🚧 ${title}`,
