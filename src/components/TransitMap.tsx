@@ -16,6 +16,8 @@ import 'maplibre-gl/dist/maplibre-gl.css'
 import { generateMockTTCData } from '../server/gtfs-fetcher'
 import { computeGTFSSegments, calculateLineWidth, calculateOpacity } from '../server/gtfs-processor'
 import type { RouteSegment } from '../server/gtfs-processor'
+import { useDisruptionStore } from '../store/disruptions'
+import { getDisruptionsWithCoordinates } from '../utils/disruption-mapper'
 import './TransitMap.css'
 
 // Toronto coordinates
@@ -29,6 +31,8 @@ interface TransitMapProps {
 export function TransitMap({ className = '' }: TransitMapProps) {
   const mapContainer = useRef<HTMLDivElement>(null)
   const map = useRef<maplibregl.Map | null>(null)
+  const markers = useRef<maplibregl.Marker[]>([])
+  const disruptions = useDisruptionStore((state) => state.disruptions)
   const [isLoading, setIsLoading] = useState(true)
   const [segmentStats, setSegmentStats] = useState<{
     total: number
@@ -107,10 +111,103 @@ export function TransitMap({ className = '' }: TransitMapProps) {
 
     // Cleanup
     return () => {
+      markers.current.forEach(m => m.remove())
+      markers.current = []
       map.current?.remove()
       map.current = null
     }
   }, [])
+
+  // Add disruption markers whenever disruptions change
+  useEffect(() => {
+    if (!map.current || !disruptions) return
+
+    const updateMarkers = async () => {
+      // Clear old markers
+      markers.current.forEach(m => m.remove())
+      markers.current = []
+
+      // Get disruptions with coordinates
+      const disruptionsWithCoords = await getDisruptionsWithCoordinates(disruptions)
+
+      console.log(`📍 Adding ${disruptionsWithCoords.length} disruption markers to map`)
+
+      // Severity colors
+      const severityColors: Record<string, string> = {
+        severe: '#ff4444',
+        moderate: '#ffaa00',
+        minor: '#44ff44',
+      }
+
+      // Type emojis
+      const typeEmojis: Record<string, string> = {
+        subway: '🚇',
+        streetcar: '🚊',
+        bus: '🚌',
+        road: '🛣️',
+        elevator: '🛗',
+        escalator: '⬆️',
+      }
+
+      // Add markers for each disruption
+      disruptionsWithCoords.forEach(disruption => {
+        const { coordinates } = disruption
+        const color = severityColors[disruption.severity] || '#999'
+        const emoji = typeEmojis[disruption.type] || '⚠️'
+
+        // Create custom marker element with pulse animation
+        const el = document.createElement('div')
+        el.className = `disruption-marker ${disruption.severity}`
+        el.innerHTML = `
+        <div class="marker-pulse"></div>
+        <div class="marker-icon">${emoji}</div>
+      `
+
+        // Format time
+        const now = Date.now()
+        const diff = now - disruption.timestamp
+        const minutes = Math.floor(diff / 60000)
+        const hours = Math.floor(minutes / 60)
+        let timeStr = ''
+        if (minutes < 1) timeStr = 'NOW'
+        else if (minutes < 60) timeStr = `${minutes}m ago`
+        else timeStr = `${hours}h ago`
+
+        // Create popup
+        const popup = new maplibregl.Popup({ offset: 25, closeButton: true })
+          .setHTML(`
+          <div class="disruption-popup">
+            <div class="popup-severity ${disruption.severity}">
+              ${emoji} ${disruption.severity.toUpperCase()}
+            </div>
+            <h3>${disruption.title || disruption.description}</h3>
+            <p>${disruption.description}</p>
+            ${disruption.affectedLines && disruption.affectedLines.length > 0 ? 
+              `<div class="popup-lines">
+                <strong>Lines:</strong> ${disruption.affectedLines.join(', ')}
+              </div>` 
+              : ''}
+            ${coordinates.stationName ? 
+              `<div class="popup-station">
+                <strong>Location:</strong> ${coordinates.stationName}
+              </div>` 
+              : ''}
+            <div class="popup-time">${timeStr}</div>
+          </div>
+        `)
+
+        // Create marker
+        const marker = new maplibregl.Marker({ element: el })
+          .setLngLat([coordinates.lon, coordinates.lat])
+          .setPopup(popup)
+          .addTo(map.current!)
+
+        markers.current.push(marker)
+      })
+    }
+
+    updateMarkers()
+  }, [disruptions])
 
   return (
     <div className={`transit-map-container ${className}`}>
