@@ -7,6 +7,17 @@ export default defineConfig({
     port: 5173,
     strictPort: false,
     allowedHosts: ['*'], // Allow all hosts for Railway deployment
+    proxy: {
+      // Proxy API requests to backend server in development
+      '/api': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+      },
+      '/health': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+      },
+    },
   },
   build: {
     target: 'ES2020',

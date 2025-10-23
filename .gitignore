@@ -6,3 +6,11 @@ dist/
 .vercel
 .DS_Store
 *.log
+
+# Temporary analysis scripts and data
+temp/
+temp-*
+tcl-*.json
+centreline-*.json
+analysis-*.js
+test-tcl-*.js
