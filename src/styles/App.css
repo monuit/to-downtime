@@ -33,7 +33,7 @@
 
 .header h1 {
   font-size: 2.5em;
-  margin: 0;
+  margin: 0 0 8px 0;
   background: linear-gradient(135deg, #00ff88, #0088ff);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -44,7 +44,39 @@
 .header p {
   font-size: 1em;
   color: #aaa;
-  margin-top: 5px;
+  margin: 0 0 12px 0;
+}
+
+.view-toggle {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
+
+.toggle-btn {
+  padding: 8px 16px;
+  background: rgba(100, 150, 200, 0.1);
+  border: 1px solid rgba(100, 150, 200, 0.2);
+  border-radius: 6px;
+  color: #a0aec0;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.toggle-btn:hover {
+  background: rgba(100, 150, 200, 0.15);
+  border-color: rgba(100, 150, 200, 0.3);
+}
+
+.toggle-btn.active {
+  background: rgba(100, 200, 255, 0.2);
+  border-color: rgba(100, 200, 255, 0.5);
+  color: #64b5f6;
+  box-shadow: 0 0 12px rgba(100, 200, 255, 0.2);
 }
 
 /* Responsive */
