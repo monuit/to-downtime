@@ -39,6 +39,14 @@ if (!existsSync(distPath)) {
 app.use(cors())
 app.use(express.json())
 
+// Request logging middleware for debugging
+app.use((req, res, next) => {
+  if (!req.path.startsWith('/health') && !req.path.startsWith('/api/')) {
+    console.log(`📍 Request: ${req.method} ${req.path}`)
+  }
+  next()
+})
+
 // Health check endpoint
 app.get('/health', (req, res) => {
   const stats = etlScheduler.getStats()
@@ -111,9 +119,19 @@ app.get('/api/stats', (req, res) => {
 })
 
 // Serve static files from React build (dist/)
-app.use(express.static(distPath))
+console.log('📁 Setting up static file serving from:', distPath)
+app.use(express.static(distPath, {
+  maxAge: '1h', // Cache static assets for 1 hour
+  etag: false,
+}))
 
-// Error handling middleware
+// All other routes serve index.html (SPA fallback) - must be last
+app.get('*', (req, res) => {
+  console.log('📍 SPA fallback: serving index.html for', req.path)
+  res.sendFile(path.join(distPath, 'index.html'))
+})
+
+// Error handling middleware (should be after all other routes)
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
   console.error('Express error:', err)
   res.status(500).json({
@@ -121,11 +139,6 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
     error: 'Internal server error',
     message: process.env.NODE_ENV === 'production' ? 'An error occurred' : err.message,
   })
-})
-
-// All other routes serve index.html (SPA fallback) - must be last
-app.use((req, res) => {
-  res.sendFile(path.join(distPath, 'index.html'))
 })
 
 // Start server
