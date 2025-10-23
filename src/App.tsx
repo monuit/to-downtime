@@ -24,20 +24,19 @@ function App() {
       <div className="header">
         <h1>🚇 Toronto Downtime</h1>
         <p>Real-time Transit & Road Disruptions</p>
-        <RefreshTimer lastUpdated={lastUpdated} loading={loading} />
       </div>
       
       <div className="main-content">
-        <div className="disruptions-section">
-          <Canvas />
-        </div>
-        
         <div className="stats-section">
           <Dashboard />
         </div>
+        
+        <div className="disruptions-section">
+          <Canvas />
+        </div>
       </div>
       
-      <Footer />
+      <Footer lastUpdated={lastUpdated} loading={loading} />
     </div>
   )
 }

@@ -41,21 +41,20 @@
   gap: 0;
 }
 
-/* Left side - Disruptions feed */
-.disruptions-section {
-  flex: 1;
-  overflow-y: auto;
-  background: #0a0a0a;
-  border-right: 1px solid rgba(100, 150, 200, 0.2);
-}
-
-/* Right side - Statistics dashboard */
+/* LEFT side - Statistics dashboard */
 .stats-section {
   width: 400px;
   overflow-y: auto;
   background: rgba(10, 15, 25, 0.8);
   padding: 20px;
-  border-left: 1px solid rgba(100, 150, 200, 0.3);
+  border-right: 1px solid rgba(100, 150, 200, 0.3);
+}
+
+/* RIGHT side - Disruptions feed */
+.disruptions-section {
+  flex: 1;
+  overflow-y: auto;
+  background: #0a0a0a;
 }
 
 /* Responsive */
@@ -70,17 +69,15 @@
     flex-direction: column;
   }
   
-  .disruptions-section {
-    border-right: none;
-    border-bottom: 1px solid rgba(100, 150, 200, 0.2);
-    max-height: 60vh;
-  }
-  
   .stats-section {
     width: 100%;
     max-height: 40vh;
-    border-left: none;
-    border-top: 1px solid rgba(100, 150, 200, 0.3);
+    border-right: none;
+    border-bottom: 1px solid rgba(100, 150, 200, 0.3);
+  }
+  
+  .disruptions-section {
+    max-height: 60vh;
   }
 }
 
