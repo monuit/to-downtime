@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Canvas } from './components/Canvas'
 import { Analytics } from './components/Analytics'
+import { TransitMap } from './components/TransitMap'
 import { Dashboard } from './components/Dashboard'
 import { RefreshTimer } from './components/RefreshTimer'
 import { Footer } from './components/Footer'
@@ -13,7 +14,7 @@ import './components/Footer.css'
 function App() {
   const { data, loading, error, lastUpdated } = useDataFetcher()
   const setDisruptions = useDisruptionStore((state) => state.setDisruptions)
-  const [view, setView] = useState<'disruptions' | 'analytics'>('disruptions')
+  const [view, setView] = useState<'disruptions' | 'analytics' | 'map'>('disruptions')
 
   useEffect(() => {
     if (data) {
@@ -23,11 +24,10 @@ function App() {
 
   return (
     <div className="app-container">
-      {view === 'disruptions' ? (
-        <Canvas />
-      ) : (
-        <Analytics />
-      )}
+      {view === 'disruptions' && <Canvas />}
+      {view === 'analytics' && <Analytics />}
+      {view === 'map' && <TransitMap />}
+      
       <div className="ui-overlay">
         <div className="header">
           <h1>🚇 Toronto Downtime</h1>
@@ -44,6 +44,12 @@ function App() {
               onClick={() => setView('analytics')}
             >
               📊 Analytics
+            </button>
+            <button
+              className={`toggle-btn ${view === 'map' ? 'active' : ''}`}
+              onClick={() => setView('map')}
+            >
+              🗺️ Transit Map
             </button>
           </div>
         </div>
