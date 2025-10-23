@@ -1,19 +1,51 @@
+import dotenv from 'dotenv'
+dotenv.config() // Load .env BEFORE anything else
+
 import { Pool, QueryResult } from 'pg'
+import { runMigrations } from './migrations/index.js'
 
 /**
  * Postgres Database Connection & Utilities
- * Uses Neon serverless Postgres with connection pooling
+ * Uses Railway/Neon Postgres with connection pooling
  */
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  // SSL is required for Neon
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : undefined,
-})
+// Parse DATABASE_URL to avoid SASL password encoding issues
+const databaseUrl = process.env.DATABASE_URL || ''
+const urlPattern = /postgresql:\/\/([^:]+):([^@]+)@([^:]+):(\d+)\/(.+)/
+const match = databaseUrl.match(urlPattern)
+
+console.log('🔍 Debug - DATABASE_URL present:', !!databaseUrl)
+console.log('🔍 Debug - URL match:', !!match)
+if (match) {
+  console.log('🔍 Debug - User:', match[1])
+  console.log('🔍 Debug - Password type:', typeof match[2], 'Length:', match[2]?.length)
+  console.log('🔍 Debug - Host:', match[3])
+  console.log('🔍 Debug - Port:', match[4])
+  console.log('🔍 Debug - Database:', match[5])
+}
+
+const pool = new Pool(
+  match
+    ? {
+        user: match[1],
+        password: match[2],
+        host: match[3],
+        port: parseInt(match[4], 10),
+        database: match[5],
+        ssl: false,
+      }
+    : {
+        connectionString: databaseUrl,
+        ssl: false,
+      }
+)
+
+// Export pool for migrations
+export { pool }
 
 /**
- * Initialize database schema
- * Creates tables if they don't exist
+ * Initialize database schema and run migrations
+ * Creates tables if they don't exist and applies pending migrations
  */
 export const initializeDatabase = async (): Promise<void> => {
   const client = await pool.connect()
@@ -29,15 +61,27 @@ export const initializeDatabase = async (): Promise<void> => {
         title VARCHAR(500) NOT NULL,
         description TEXT,
         affected_lines TEXT[],
+        source_api VARCHAR(255),
+        source_url TEXT,
+        raw_data JSONB,
+        last_fetched_at TIMESTAMP WITH TIME ZONE,
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
         resolved_at TIMESTAMP WITH TIME ZONE,
-        is_active BOOLEAN DEFAULT TRUE,
-        INDEX (type),
-        INDEX (severity),
-        INDEX (is_active),
-        INDEX (created_at DESC)
+        is_active BOOLEAN DEFAULT TRUE
       )
+    `)
+
+    // Create indexes for disruptions table
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_disruptions_type ON disruptions(type);
+      CREATE INDEX IF NOT EXISTS idx_disruptions_severity ON disruptions(severity);
+      CREATE INDEX IF NOT EXISTS idx_disruptions_is_active ON disruptions(is_active);
+      CREATE INDEX IF NOT EXISTS idx_disruptions_created_at ON disruptions(created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_disruptions_source_api ON disruptions(source_api);
+      CREATE INDEX IF NOT EXISTS idx_disruptions_external_id ON disruptions(external_id);
+      CREATE INDEX IF NOT EXISTS idx_disruptions_last_fetched ON disruptions(last_fetched_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_disruptions_active_fetched ON disruptions(is_active, last_fetched_at DESC);
     `)
 
     // Archive table (historical records)
@@ -50,15 +94,28 @@ export const initializeDatabase = async (): Promise<void> => {
         title VARCHAR(500) NOT NULL,
         description TEXT,
         affected_lines TEXT[],
+        source_api VARCHAR(255),
+        source_url TEXT,
+        raw_data JSONB,
         created_at TIMESTAMP WITH TIME ZONE,
         updated_at TIMESTAMP WITH TIME ZONE,
         resolved_at TIMESTAMP WITH TIME ZONE,
         archived_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-        duration_minutes INT,
-        INDEX (type),
-        INDEX (severity),
-        INDEX (archived_at DESC)
+        duration_minutes INT
       )
+    `)
+
+    // Create indexes for archive table
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_archive_type ON disruptions_archive(type);
+      CREATE INDEX IF NOT EXISTS idx_archive_severity ON disruptions_archive(severity);
+      CREATE INDEX IF NOT EXISTS idx_archive_archived_at ON disruptions_archive(archived_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_archive_source_api ON disruptions_archive(source_api);
+      CREATE INDEX IF NOT EXISTS idx_archive_external_id ON disruptions_archive(external_id);
+      CREATE INDEX IF NOT EXISTS idx_archive_created_at ON disruptions_archive(created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_archive_resolved_at ON disruptions_archive(resolved_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_archive_duration ON disruptions_archive(duration_minutes DESC);
+      CREATE INDEX IF NOT EXISTS idx_archive_affected_lines ON disruptions_archive USING GIN(affected_lines);
     `)
 
     // Deduplication tracking (to prevent duplicates)
@@ -67,20 +124,29 @@ export const initializeDatabase = async (): Promise<void> => {
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         disruption_id UUID NOT NULL REFERENCES disruptions(id) ON DELETE CASCADE,
         content_hash VARCHAR(64) NOT NULL UNIQUE,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-        INDEX (disruption_id),
-        INDEX (content_hash)
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
       )
     `)
 
-    console.log('✓ Database schema initialized')
+    // Create indexes for hashes table
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_hashes_disruption_id ON disruption_hashes(disruption_id);
+      CREATE INDEX IF NOT EXISTS idx_hashes_content_hash ON disruption_hashes(content_hash);
+    `)
+
+    console.log('✓ Database schema initialized with metadata tracking')
   } finally {
     client.release()
   }
+
+  // Run pending migrations
+  console.log('\n📦 Running database migrations...')
+  await runMigrations(pool)
+  console.log('✓ Database setup complete\n')
 }
 
 /**
- * Insert or update a disruption
+ * Insert or update a disruption with metadata tracking
  */
 export const upsertDisruption = async (
   externalId: string,
@@ -90,12 +156,16 @@ export const upsertDisruption = async (
     title: string
     description?: string
     affectedLines?: string[]
+    sourceApi?: string
+    sourceUrl?: string
+    rawData?: any
   }
 ): Promise<any> => {
   const query = `
     INSERT INTO disruptions (
-      external_id, type, severity, title, description, affected_lines, is_active
-    ) VALUES ($1, $2, $3, $4, $5, $6, TRUE)
+      external_id, type, severity, title, description, affected_lines, 
+      source_api, source_url, raw_data, last_fetched_at, is_active
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, CURRENT_TIMESTAMP, TRUE)
     ON CONFLICT (external_id) 
     DO UPDATE SET
       type = $2,
@@ -103,6 +173,10 @@ export const upsertDisruption = async (
       title = $4,
       description = $5,
       affected_lines = $6,
+      source_api = $7,
+      source_url = $8,
+      raw_data = $9,
+      last_fetched_at = CURRENT_TIMESTAMP,
       is_active = TRUE,
       updated_at = CURRENT_TIMESTAMP
     RETURNING *
@@ -115,6 +189,9 @@ export const upsertDisruption = async (
     data.title,
     data.description || null,
     data.affectedLines || null,
+    data.sourceApi || null,
+    data.sourceUrl || null,
+    data.rawData ? JSON.stringify(data.rawData) : null,
   ])
 
   return result.rows[0]
@@ -234,6 +311,20 @@ export const getArchiveStats = async (): Promise<any> => {
 
   const result = await pool.query(query)
   return result.rows[0]
+}
+
+/**
+ * Get all active disruptions
+ */
+export const getAllDisruptions = async (): Promise<any[]> => {
+  const query = `
+    SELECT * FROM disruptions
+    WHERE is_active = TRUE
+    ORDER BY created_at DESC
+  `
+
+  const result = await pool.query(query)
+  return result.rows
 }
 
 /**
