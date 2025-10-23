@@ -6,6 +6,7 @@ import '../styles/Canvas.css'
 
 export const Canvas: React.FC = () => {
   const disruptions = useDisruptionStore((state) => state.disruptions)
+  const setSelectedDisruption = useDisruptionStore((state) => state.setSelectedDisruption)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [sortBy, setSortBy] = useState<'time' | 'severity'>('severity')
   const [filterSeverity, setFilterSeverity] = useState<string[]>(['severe', 'moderate', 'minor'])
@@ -63,7 +64,16 @@ export const Canvas: React.FC = () => {
   }
 
   const toggleExpand = (id: string) => {
-    setExpandedId(expandedId === id ? null : id)
+    const newExpandedId = expandedId === id ? null : id
+    setExpandedId(newExpandedId)
+    
+    // Update selected disruption in store for map
+    if (newExpandedId) {
+      const disruption = sorted.find(d => d.id === newExpandedId)
+      setSelectedDisruption(disruption || null)
+    } else {
+      setSelectedDisruption(null)
+    }
   }
 
   const allTypes = Array.from(new Set(disruptions.map(d => d.type)))
@@ -87,12 +97,10 @@ export const Canvas: React.FC = () => {
   return (
     <div className="canvas-container">
       <StatusBar disruptions={disruptions} />
-      
-      <Legend />
 
       {/* Filter and Sort Controls */}
       <div className="controls">
-        <div className="control-group">
+        <div className="control-group sort-filter-group">
           <span className="control-label">Sort:</span>
           <button
             className={`control-btn ${sortBy === 'severity' ? 'active' : ''}`}
@@ -106,9 +114,9 @@ export const Canvas: React.FC = () => {
           >
             Time
           </button>
-        </div>
-
-        <div className="control-group">
+          
+          <span className="control-divider">|</span>
+          
           <span className="control-label">Filter:</span>
           <button
             className={`control-btn severity-btn severe ${filterSeverity.includes('severe') ? 'active' : ''}`}
@@ -187,12 +195,64 @@ export const Canvas: React.FC = () => {
                       <span className="detail-value">{disruption.affectedLines.join(', ')}</span>
                     </div>
                   )}
+                  {disruption.cause && (
+                    <div className="detail-row">
+                      <span className="detail-label">Cause:</span>
+                      <span className="detail-value">
+                        {disruption.cause === 'maintenance' && '🔧 Maintenance'}
+                        {disruption.cause === 'weather' && '⛈️ Weather'}
+                        {disruption.cause === 'medical' && '🚑 Medical Emergency'}
+                        {disruption.cause === 'mechanical' && '⚙️ Mechanical Issue'}
+                        {disruption.cause === 'investigation' && '🔍 Investigation'}
+                        {disruption.cause === 'other' && '❓ Other'}
+                      </span>
+                    </div>
+                  )}
+                  {disruption.direction && (
+                    <div className="detail-row">
+                      <span className="detail-label">Direction:</span>
+                      <span className="detail-value">
+                        {disruption.direction === 'eastbound' && '→ Eastbound'}
+                        {disruption.direction === 'westbound' && '← Westbound'}
+                        {disruption.direction === 'northbound' && '↑ Northbound'}
+                        {disruption.direction === 'southbound' && '↓ Southbound'}
+                        {disruption.direction === 'bidirectional' && '↔ Both Directions'}
+                      </span>
+                    </div>
+                  )}
+                  {disruption.stopIds && disruption.stopIds.length > 0 && (
+                    <div className="detail-row">
+                      <span className="detail-label">Stations:</span>
+                      <span className="detail-value">{disruption.stopIds.length} affected</span>
+                    </div>
+                  )}
+                  {disruption.activePeriod?.end && (
+                    <div className="detail-row">
+                      <span className="detail-label">Expires:</span>
+                      <span className="detail-value">
+                        {new Date(disruption.activePeriod.end).toLocaleString()}
+                      </span>
+                    </div>
+                  )}
                   <div className="detail-row">
                     <span className="detail-label">Reported:</span>
                     <span className="detail-value">
                       {new Date(disruption.timestamp).toLocaleTimeString()}
                     </span>
                   </div>
+                  {disruption.url && (
+                    <div className="detail-row">
+                      <a
+                        href={disruption.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="detail-link"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        More Info ↗
+                      </a>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
