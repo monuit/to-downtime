@@ -55,9 +55,10 @@ export const useDataFetcher = (): DataFetcherResult => {
   const [error, setError] = useState<string | null>(null)
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
   const [nextRefreshTime, setNextRefreshTime] = useState<Date | null>(null)
-  const [currentInterval, setCurrentInterval] = useState<number>(getRandomRefreshInterval())
 
   useEffect(() => {
+    let timeoutId: NodeJS.Timeout
+
     const fetchData = async () => {
       setLoading(true)
       try {
@@ -66,13 +67,19 @@ export const useDataFetcher = (): DataFetcherResult => {
         const now = new Date()
         setLastUpdated(now)
         const nextInterval = getRandomRefreshInterval()
-        setCurrentInterval(nextInterval)
         setNextRefreshTime(new Date(now.getTime() + nextInterval))
         setError(null)
         console.log(`📊 Loaded ${result.length} disruptions, next refresh in ${Math.floor(nextInterval / 1000)}s`)
+        
+        // Schedule next fetch
+        timeoutId = setTimeout(fetchData, nextInterval)
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Unknown error')
         console.error('Failed to fetch disruptions:', err)
+        
+        // Retry on error after a random interval
+        const retryInterval = getRandomRefreshInterval()
+        timeoutId = setTimeout(fetchData, retryInterval)
       } finally {
         setLoading(false)
       }
@@ -81,13 +88,12 @@ export const useDataFetcher = (): DataFetcherResult => {
     // Fetch immediately
     fetchData()
 
-    // Set up interval with randomized duration
-    const interval = setInterval(() => {
-      fetchData()
-    }, currentInterval)
-
-    return () => clearInterval(interval)
-  }, [currentInterval])
+    return () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId)
+      }
+    }
+  }, [])
 
   return { data, loading, error, lastUpdated, nextRefreshTime }
 }
