@@ -1,15 +1,20 @@
 .legend-container {
+  position: fixed;
+  bottom: 60px;
+  right: 16px;
   width: 100%;
-  max-width: 600px;
-  margin-bottom: 12px;
+  max-width: 400px;
   font-family: 'Geist Mono', monospace;
+  z-index: 1000;
+  pointer-events: none;
 }
 
 .legend-toggle {
   display: flex;
   align-items: center;
   gap: 8px;
-  width: 100%;
+  width: fit-content;
+  margin-left: auto;
   background: #111;
   border: 1px solid #222;
   border-radius: 4px;
@@ -20,12 +25,15 @@
   font-family: 'Geist Mono', monospace;
   font-size: 11px;
   font-weight: 600;
+  pointer-events: auto;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
 }
 
 .legend-toggle:hover {
   background: #1a1a1a;
   border-color: #333;
   color: #bbb;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.6);
 }
 
 .legend-icon {
@@ -52,11 +60,14 @@
 .legend-content {
   background: #111;
   border: 1px solid #222;
-  border-top: none;
-  border-radius: 0 0 4px 4px;
+  border-radius: 4px;
   padding: 12px;
-  margin-top: -1px;
+  margin-top: 8px;
   animation: slideDown 0.2s ease;
+  pointer-events: auto;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.7);
+  max-height: 70vh;
+  overflow-y: auto;
 }
 
 @keyframes slideDown {
@@ -163,7 +174,10 @@
 
 @media (max-width: 768px) {
   .legend-container {
-    max-width: 100%;
+    max-width: calc(100% - 32px);
+    bottom: 50px;
+    right: 16px;
+    left: 16px;
   }
 
   .legend-toggle {
@@ -173,6 +187,7 @@
 
   .legend-content {
     padding: 10px;
+    max-height: 60vh;
   }
 
   .legend-item {
