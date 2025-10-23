@@ -8,6 +8,8 @@
   border: 1px solid #222;
   margin-bottom: 12px;
   font-family: 'Geist Mono', monospace;
+  width: 100%;
+  max-width: 600px;
 }
 
 .status-counts {

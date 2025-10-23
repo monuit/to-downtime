@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useDisruptionStore } from '../store/disruptions'
 import { StatusBar } from './StatusBar'
+import { Legend } from './Legend'
 import '../styles/Canvas.css'
 
 export const Canvas: React.FC = () => {
@@ -86,6 +87,8 @@ export const Canvas: React.FC = () => {
   return (
     <div className="canvas-container">
       <StatusBar disruptions={disruptions} />
+      
+      <Legend />
 
       {/* Filter and Sort Controls */}
       <div className="controls">
