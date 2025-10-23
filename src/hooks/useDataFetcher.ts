@@ -8,57 +8,38 @@ interface DataFetcherResult {
   lastUpdated: Date | null
 }
 
-// Simulated ETL data fetcher - in production, this would call your API
+/**
+ * Get random refresh interval between 5-30 seconds
+ */
+const getRandomRefreshInterval = (minMs: number = 5000, maxMs: number = 30000): number => {
+  return Math.floor(Math.random() * (maxMs - minMs + 1)) + minMs
+}
+
+/**
+ * Fetch disruptions from backend API
+ * API fetches from multiple sources:
+ * - TTC GTFS Realtime
+ * - Toronto Open Data (Road Restrictions)
+ * - Toronto Open Data (Transit Alerts)
+ */
 const fetchDisruptionData = async (): Promise<Disruption[]> => {
-  // This would call your backend API that fetches from GTFS-RT
   try {
-    const response = await fetch('/api/disruptions')
-    if (!response.ok) throw new Error('Failed to fetch disruptions')
-    return await response.json()
-  } catch {
-    // Return mock data for demo
-    return generateMockData()
+    const response = await fetch('/api/sync')
+    if (!response.ok) throw new Error(`API error: ${response.statusText}`)
+    const json = await response.json()
+    return json.disruptions || []
+  } catch (error) {
+    console.error('Failed to fetch disruptions from API:', error)
+    return []
   }
 }
 
-const generateMockData = (): Disruption[] => {
-  const types: Array<'subway' | 'streetcar' | 'bus' | 'road' | 'elevator' | 'escalator'> = [
-    'subway',
-    'streetcar',
-    'bus',
-    'road',
-    'elevator',
-    'escalator',
-  ]
-  const severities: Array<'severe' | 'moderate' | 'minor'> = ['severe', 'moderate', 'minor']
-  const lines = ['Line 1', 'Line 2', 'Line 3', 'Line 4', 'Spadina', 'Bloor-Danforth']
-
-  return Array.from({ length: Math.floor(Math.random() * 15) + 3 }).map((_, i) => ({
-    id: `disruption-${i}`,
-    type: types[Math.floor(Math.random() * types.length)],
-    severity: severities[Math.floor(Math.random() * severities.length)],
-    title: [
-      'Service Suspended',
-      'Delays Expected',
-      'Bypass Operation',
-      'Road Closure',
-      'Early Closure',
-      'Reduced Speed',
-    ][Math.floor(Math.random() * 6)],
-    description: 'This is a sample disruption for demo purposes',
-    affectedLines: [
-      lines[Math.floor(Math.random() * lines.length)],
-      lines[Math.floor(Math.random() * lines.length)],
-    ],
-    timestamp: Date.now(),
-  }))
-}
-
-export const useDataFetcher = (intervalMs: number = 30000): DataFetcherResult => {
+export const useDataFetcher = (): DataFetcherResult => {
   const [data, setData] = useState<Disruption[] | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
+  const [nextInterval, setNextInterval] = useState<number>(getRandomRefreshInterval())
 
   useEffect(() => {
     const fetchData = async () => {
@@ -68,6 +49,7 @@ export const useDataFetcher = (intervalMs: number = 30000): DataFetcherResult =>
         setData(result)
         setLastUpdated(new Date())
         setError(null)
+        console.log(`📊 Loaded ${result.length} disruptions`)
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Unknown error')
         console.error('Failed to fetch disruptions:', err)
@@ -79,11 +61,18 @@ export const useDataFetcher = (intervalMs: number = 30000): DataFetcherResult =>
     // Fetch immediately
     fetchData()
 
-    // Set up interval
-    const interval = setInterval(fetchData, intervalMs)
+    // Set up interval with randomized duration
+    const currentInterval = getRandomRefreshInterval()
+    setNextInterval(currentInterval)
+
+    const interval = setInterval(() => {
+      fetchData()
+      // Randomize next interval
+      setNextInterval(getRandomRefreshInterval())
+    }, currentInterval)
 
     return () => clearInterval(interval)
-  }, [intervalMs])
+  }, [])
 
   return { data, loading, error, lastUpdated }
 }
