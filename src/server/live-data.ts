@@ -12,6 +12,7 @@
 import { Disruption } from '../store/disruptions'
 import { fetchTTCServiceAlerts } from './etl/ttc-service-alerts.js'
 import { fetchRoadRestrictions } from './etl/road-restrictions.js'
+import { logger } from './logger.js'
 
 export interface LiveDataResult {
   disruptions: Disruption[]
@@ -31,7 +32,7 @@ export interface LiveDataResult {
  * Fetch all live disruption data from Toronto Open Data
  */
 export const fetchAllLiveData = async (): Promise<Disruption[]> => {
-  console.log('🔄 Starting ETL from Toronto Open Data APIs...')
+  logger.debug('🔄 Starting ETL from Toronto Open Data APIs...')
   const startTime = Date.now()
 
   const allDisruptions: Disruption[] = []
@@ -41,10 +42,10 @@ export const fetchAllLiveData = async (): Promise<Disruption[]> => {
   try {
     const ttcResult = await fetchTTCServiceAlerts()
     allDisruptions.push(...ttcResult.disruptions)
-    console.log(`✅ TTC: ${ttcResult.disruptions.length} alerts`)
+    logger.debug(`✅ TTC: ${ttcResult.disruptions.length} alerts`)
   } catch (error) {
     const errorMsg = `TTC Service Alerts: ${error instanceof Error ? error.message : 'Unknown error'}`
-    console.error(`❌ ${errorMsg}`)
+    logger.error(`❌ ${errorMsg}`)
     errors.push(errorMsg)
   }
 
@@ -52,19 +53,19 @@ export const fetchAllLiveData = async (): Promise<Disruption[]> => {
   try {
     const roadResult = await fetchRoadRestrictions()
     allDisruptions.push(...roadResult.disruptions)
-    console.log(`✅ Roads: ${roadResult.disruptions.length} restrictions`)
+    logger.debug(`✅ Roads: ${roadResult.disruptions.length} restrictions`)
   } catch (error) {
     const errorMsg = `Road Restrictions: ${error instanceof Error ? error.message : 'Unknown error'}`
-    console.error(`❌ ${errorMsg}`)
+    logger.error(`❌ ${errorMsg}`)
     errors.push(errorMsg)
   }
 
   const duration = Date.now() - startTime
-  console.log(`✅ ETL completed in ${duration}ms`)
-  console.log(`📊 Total: ${allDisruptions.length} disruptions`)
+  logger.debug(`✅ ETL completed in ${duration}ms`)
+  logger.debug(`📊 Total: ${allDisruptions.length} disruptions`)
   
   if (errors.length > 0) {
-    console.warn(`⚠️  ${errors.length} source(s) failed:`, errors)
+    logger.warn(`⚠️  ${errors.length} source(s) failed:`, errors)
   }
 
   return allDisruptions
@@ -74,7 +75,7 @@ export const fetchAllLiveData = async (): Promise<Disruption[]> => {
  * Fetch with detailed metadata
  */
 export const fetchAllLiveDataWithMetadata = async (): Promise<LiveDataResult> => {
-  console.log('🔄 Starting detailed ETL from Toronto Open Data APIs...')
+  logger.debug('🔄 Starting detailed ETL from Toronto Open Data APIs...')
   const startTime = Date.now()
 
   const allDisruptions: Disruption[] = []
@@ -90,10 +91,10 @@ export const fetchAllLiveDataWithMetadata = async (): Promise<LiveDataResult> =>
       count: ttcResult.disruptions.length,
       fetchedAt: ttcResult.metadata.fetchedAt,
     })
-    console.log(`✅ TTC: ${ttcResult.disruptions.length} alerts`)
+    logger.debug(`✅ TTC: ${ttcResult.disruptions.length} alerts`)
   } catch (error) {
     const errorMsg = `TTC Service Alerts: ${error instanceof Error ? error.message : 'Unknown error'}`
-    console.error(`❌ ${errorMsg}`)
+    logger.error(`❌ ${errorMsg}`)
     errors.push(errorMsg)
   }
 
@@ -106,19 +107,19 @@ export const fetchAllLiveDataWithMetadata = async (): Promise<LiveDataResult> =>
       count: roadResult.disruptions.length,
       fetchedAt: roadResult.metadata.fetchedAt,
     })
-    console.log(`✅ Roads: ${roadResult.disruptions.length} restrictions`)
+    logger.debug(`✅ Roads: ${roadResult.disruptions.length} restrictions`)
   } catch (error) {
     const errorMsg = `Road Restrictions: ${error instanceof Error ? error.message : 'Unknown error'}`
-    console.error(`❌ ${errorMsg}`)
+    logger.error(`❌ ${errorMsg}`)
     errors.push(errorMsg)
   }
 
   const duration = Date.now() - startTime
-  console.log(`✅ ETL completed in ${duration}ms`)
-  console.log(`📊 Total: ${allDisruptions.length} disruptions from ${sources.length} sources`)
+  logger.debug(`✅ ETL completed in ${duration}ms`)
+  logger.debug(`📊 Total: ${allDisruptions.length} disruptions from ${sources.length} sources`)
   
   if (errors.length > 0) {
-    console.warn(`⚠️  ${errors.length} source(s) failed:`, errors)
+    logger.warn(`⚠️  ${errors.length} source(s) failed:`, errors)
   }
 
   return {

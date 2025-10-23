@@ -106,6 +106,91 @@ const fetchResourceData = (url: string): Promise<any> => {
 }
 
 /**
+ * Geocode TTC stops to approximate coordinates
+ * Uses major station locations and district fallbacks
+ */
+const geocodeTTCStop = (stopIds?: string[], routeId?: string, description?: string): { lat: number; lng: number } | undefined => {
+  // Major TTC stations with coordinates
+  const majorStations: Record<string, { lat: number; lng: number }> = {
+    // Subway stations (Line 1 - Yonge)
+    'finch': { lat: 43.7258, lng: -79.3957 },
+    'bloor-yonge': { lat: 43.6707, lng: -79.3957 },
+    'dundas-subway': { lat: 43.6643, lng: -79.3957 },
+    'queen-subway': { lat: 43.6426, lng: -79.3957 },
+    'king-subway': { lat: 43.6426, lng: -79.3957 },
+    'union': { lat: 43.6426, lng: -79.3772 },
+    'st-george': { lat: 43.6629, lng: -79.3957 },
+    
+    // Subway stations (Line 2 - Bloor)
+    'kipling': { lat: 43.6629, lng: -79.4644 },
+    'dundas-west': { lat: 43.6629, lng: -79.4194 },
+    'bathurst-subway': { lat: 43.6629, lng: -79.4067 },
+    'spadina-subway': { lat: 43.6629, lng: -79.3957 },
+    'bay': { lat: 43.6629, lng: -79.3872 },
+    'bay-bloor': { lat: 43.6707, lng: -79.3872 },
+    'wellesley': { lat: 43.6549, lng: -79.3872 },
+    
+    // Subway stations (Line 3 - Bloor-Danforth)
+    'bloor-danforth': { lat: 43.6707, lng: -79.3000 },
+    'chester': { lat: 43.6833, lng: -79.3140 },
+    'broadview': { lat: 43.6707, lng: -79.3611 },
+    
+    // Subway stations (Line 4 - Sheppard)
+    'sheppard': { lat: 43.7615, lng: -79.4111 },
+    'yonge-sheppard': { lat: 43.7615, lng: -79.3957 },
+    
+    // Streetcar main lines
+    'king-streetcar': { lat: 43.6426, lng: -79.3833 },
+    'queen-streetcar': { lat: 43.6500, lng: -79.3833 },
+    'dundas-streetcar': { lat: 43.6556, lng: -79.3833 },
+    'college': { lat: 43.6600, lng: -79.3900 },
+    'carlton': { lat: 43.6629, lng: -79.3833 },
+    'spadina-streetcar': { lat: 43.6667, lng: -79.4000 },
+    'bathurst-streetcar': { lat: 43.6667, lng: -79.4100 },
+    '505': { lat: 43.6426, lng: -79.3833 }, // King streetcar
+    '501': { lat: 43.6500, lng: -79.3833 }, // Queen streetcar
+  }
+  
+  // Try to match from stop IDs
+  if (stopIds && stopIds.length > 0) {
+    for (const stopId of stopIds) {
+      const normalized = stopId.toLowerCase().replace(/-/g, '_')
+      for (const [key, coords] of Object.entries(majorStations)) {
+        if (normalized.includes(key) || key.includes(normalized)) {
+          return coords
+        }
+      }
+    }
+  }
+  
+  // Try to parse from route ID or description
+  if (routeId) {
+    const routeNum = routeId.replace(/[a-z]/gi, '').substring(0, 3)
+    // TTC bus route general areas (simplified)
+    const routeBase = parseInt(routeNum)
+    if (routeBase > 0 && routeBase < 600) {
+      // Use simplified bus location model based on route number ranges
+      if (routeBase < 100) {
+        // Downtown/central routes
+        return { lat: 43.6629, lng: -79.3957 }
+      } else if (routeBase < 200) {
+        // North routes
+        return { lat: 43.7258, lng: -79.3957 }
+      } else if (routeBase < 300) {
+        // East routes
+        return { lat: 43.6833, lng: -79.3000 }
+      } else if (routeBase < 400) {
+        // West routes
+        return { lat: 43.6629, lng: -79.4644 }
+      }
+    }
+  }
+  
+  // Default to Toronto downtown center
+  return { lat: 43.6629, lng: -79.3957 }
+}
+
+/**
  * Parse GTFS-Realtime alert to Disruption format
  */
 const parseGTFSAlert = (alert: any, sourceUrl: string): Disruption | null => {
@@ -244,6 +329,9 @@ const parseGTFSAlert = (alert: any, sourceUrl: string): Disruption | null => {
       ? `ttc-${alertId}`.replace(/^ttc-ttc-/, 'ttc-') // Prevent double "ttc-" prefix
       : `ttc-generated-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
 
+    // Geocode TTC stop if available
+    const coordinates = geocodeTTCStop(stopIds, affectedLines[0], descriptionText || headerText)
+
     return {
       id: externalId,
       type,
@@ -257,6 +345,7 @@ const parseGTFSAlert = (alert: any, sourceUrl: string): Disruption | null => {
       stopIds: stopIds.length > 0 ? stopIds : undefined,
       direction,
       url,
+      coordinates,
       sourceApi: 'Toronto Open Data - TTC Service Alerts',
       sourceUrl,
       rawData: alert,

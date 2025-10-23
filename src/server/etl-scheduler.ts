@@ -13,6 +13,7 @@
 
 import { fetchAllLiveDataWithMetadata } from './live-data.js'
 import { upsertDisruption, getActiveDisruptions, resolveDisruption } from './db.js'
+import { logger, isVerbose } from './logger.js'
 
 interface SchedulerConfig {
   minInterval: number  // Minimum seconds between polls
@@ -87,7 +88,7 @@ class ETLScheduler {
     this.stats.lastRunAt = new Date()
 
     try {
-      console.log(`\n🔄 [ETL Scheduler] Run #${this.stats.totalRuns} starting...`)
+      logger.debug(`\n🔄 [ETL Scheduler] Run #${this.stats.totalRuns} starting...`)
 
       // Fetch live data from all sources
       const result = await fetchAllLiveDataWithMetadata()
@@ -97,6 +98,10 @@ class ETLScheduler {
 
       // Store/update disruptions in database
       let stored = 0
+      const disruptionsToMatch: Array<{ external_id: string; title: string; description?: string }> = []
+      
+      logger.info(`💾 Storing ${result.disruptions.length} disruptions in database...`)
+      
       for (const disruption of result.disruptions) {
         try {
           await upsertDisruption(disruption.id, {
@@ -108,10 +113,54 @@ class ETLScheduler {
             sourceApi: disruption.sourceApi,
             sourceUrl: disruption.sourceUrl,
             rawData: disruption.rawData,
+            coordinates: disruption.coordinates,
+            district: disruption.district,
           })
           stored++
+          
+          // Queue for TCL matching
+          disruptionsToMatch.push({
+            external_id: disruption.id,
+            title: disruption.title,
+            description: disruption.description
+          })
         } catch (err) {
-          console.error(`❌ Failed to store disruption ${disruption.id}:`, err)
+          logger.error(`❌ Failed to store disruption ${disruption.id}:`, err)
+          if (stored === 0 && result.disruptions.length > 100) {
+            // If first disruption fails and we have many, it's likely a schema issue - log extra detail
+            logger.error(`   Error Details: ${err instanceof Error ? err.stack : JSON.stringify(err)}`)
+            throw err // Re-throw to abort this run
+          }
+        }
+      }
+      
+      logger.info(`✅ Stored ${stored}/${result.disruptions.length} disruptions`)
+      
+      // TORONTO CENTRELINE MATCHING: Match disruptions to street segments
+      if (disruptionsToMatch.length > 0) {
+        try {
+          logger.info(`🔍 Starting TCL matching for ${disruptionsToMatch.length} disruptions...`)
+          const { matchDisruptionToTCL, storeTCLMappings } = await import('./etl/tcl-matcher.js')
+          let tclMatched = 0
+          
+          for (const disruption of disruptionsToMatch) {
+            const matches = await matchDisruptionToTCL(
+              disruption.external_id,
+              disruption.title,
+              disruption.description || ''
+            )
+            
+            if (matches.length > 0) {
+              await storeTCLMappings(matches)
+              tclMatched++
+              logger.debug(`   ✅ Matched "${disruption.title}" to ${matches.length} TCL segments`)
+            }
+          }
+          
+          logger.info(`✅ TCL matching complete: ${tclMatched}/${disruptionsToMatch.length} disruptions matched to street segments`)
+        } catch (tclErr) {
+          logger.error(`⚠️  TCL matching failed:`, tclErr)
+          // Don't fail the entire ETL run if TCL matching has issues
         }
       }
 
@@ -131,14 +180,14 @@ class ETLScheduler {
             try {
               await resolveDisruption(dbDisruption.external_id)
               archived++
-              console.log(`📦 Archived inactive disruption: ${dbDisruption.external_id} (last seen: ${lastFetched?.toISOString()})`)
+              logger.debug(`📦 Archived inactive disruption: ${dbDisruption.external_id} (last seen: ${lastFetched?.toISOString()})`)
             } catch (archiveErr) {
-              console.error(`❌ Failed to archive ${dbDisruption.external_id}:`, archiveErr)
+              logger.error(`❌ Failed to archive ${dbDisruption.external_id}:`, archiveErr)
             }
           }
         }
       } catch (inactivityErr) {
-        console.error(`⚠️  Inactivity detection failed:`, inactivityErr)
+        logger.error(`⚠️  Inactivity detection failed:`, inactivityErr)
         // Don't fail the entire ETL run if archival has issues
       }
 
@@ -149,12 +198,12 @@ class ETLScheduler {
       this.stats.disruptionsArchived += archived
       this.currentRetries = 0 // Reset retry counter on success
 
-      console.log(`✅ [ETL Scheduler] Run #${this.stats.totalRuns} completed in ${duration}ms`)
-      console.log(`   📊 Fetched: ${result.disruptions.length} | Stored: ${stored} | Archived: ${archived}`)
-      console.log(`   📡 Sources: ${result.metadata.sources.map(s => `${s.name} (${s.count})`).join(', ')}`)
+      logger.info(`✅ [ETL Scheduler] Run #${this.stats.totalRuns} completed in ${duration}ms`)
+      logger.info(`   📊 Fetched: ${result.disruptions.length} | Stored: ${stored} | Archived: ${archived}`)
+      logger.info(`   📡 Sources: ${result.metadata.sources.map(s => `${s.name} (${s.count})`).join(', ')}`)
 
       if (result.metadata.errors.length > 0) {
-        console.log(`   ⚠️  Errors: ${result.metadata.errors.join(', ')}`)
+        logger.warn(`   ⚠️  Errors: ${result.metadata.errors.join(', ')}`)
       }
 
     } catch (error) {
@@ -162,16 +211,16 @@ class ETLScheduler {
       this.stats.lastError = error instanceof Error ? error.message : String(error)
       this.currentRetries++
 
-      console.error(`❌ [ETL Scheduler] Run #${this.stats.totalRuns} failed:`, error)
+      logger.error(`❌ [ETL Scheduler] Run #${this.stats.totalRuns} failed:`, error)
 
       // Exponential backoff if we haven't exceeded max retries
       if (this.currentRetries < this.config.maxRetries) {
         const backoffDelay = this.getBackoffDelay()
-        console.log(`⏳ Retry ${this.currentRetries}/${this.config.maxRetries} in ${backoffDelay / 1000}s...`)
+        logger.info(`⏳ Retry ${this.currentRetries}/${this.config.maxRetries} in ${backoffDelay / 1000}s...`)
         await new Promise(resolve => setTimeout(resolve, backoffDelay))
         return this.runETL() // Recursive retry
       } else {
-        console.error(`❌ Max retries (${this.config.maxRetries}) exceeded, will try again next cycle`)
+        logger.error(`❌ Max retries (${this.config.maxRetries}) exceeded, will try again next cycle`)
         this.currentRetries = 0 // Reset for next cycle
       }
     }
@@ -184,7 +233,7 @@ class ETLScheduler {
     if (!this.isRunning) return
 
     const interval = this.getRandomInterval()
-    console.log(`⏰ [ETL Scheduler] Next run in ${interval / 1000}s`)
+    logger.debug(`⏰ [ETL Scheduler] Next run in ${interval / 1000}s`)
 
     this.timeoutId = setTimeout(async () => {
       await this.runETL()
@@ -197,15 +246,15 @@ class ETLScheduler {
    */
   start(): void {
     if (this.isRunning) {
-      console.log('⚠️  [ETL Scheduler] Already running')
+      logger.warn('⚠️  [ETL Scheduler] Already running')
       return
     }
 
     this.isRunning = true
-    console.log(`\n🚀 [ETL Scheduler] Starting...`)
-    console.log(`   ⏱️  Interval: ${this.config.minInterval}-${this.config.maxInterval}s (random)`)
-    console.log(`   🔄 Max Retries: ${this.config.maxRetries}`)
-    console.log(`   📈 Backoff Multiplier: ${this.config.backoffMultiplier}x`)
+    logger.debug(`\n🚀 [ETL Scheduler] Starting...`)
+    logger.debug(`   ⏱️  Interval: ${this.config.minInterval}-${this.config.maxInterval}s (random)`)
+    logger.debug(`   🔄 Max Retries: ${this.config.maxRetries}`)
+    logger.debug(`   📈 Backoff Multiplier: ${this.config.backoffMultiplier}x`)
 
     // Run immediately on start
     this.runETL().then(() => {

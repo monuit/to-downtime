@@ -109,6 +109,86 @@ const fetchResourceData = (url: string): Promise<any> => {
 }
 
 /**
+ * Calculate duration category from start/end timestamps
+ */
+const calculateDuration = (startTime?: number, endTime?: number): string => {
+  if (!startTime || !endTime) return '< 1 day'
+  
+  const durationMs = endTime - startTime
+  const days = durationMs / (1000 * 60 * 60 * 24)
+  
+  if (days < 1) return '< 1 day'
+  if (days <= 7) return '1-7 days'
+  if (days <= 28) return '1-4 weeks'
+  if (days <= 90) return '1-3 months'
+  return '3+ months'
+}
+
+/**
+ * Parse onsite hours from record
+ */
+const parseOnsiteHours = (record: any): string | undefined => {
+  // Check various fields that might contain hours
+  if (record.onsiteHours) return record.onsiteHours
+  if (record.workHours) return record.workHours
+  if (record.hours) return record.hours
+  
+  // Infer from schedule type
+  if (record.scheduleType === '24/7') return '24/7'
+  if (record.scheduleType === 'Weekdays Only') return 'Mon-Fri 7am-7pm'
+  
+  return undefined
+}
+
+/**
+ * Simple geocoding for Toronto roads
+ * Returns approximate coordinates for main roads/districts
+ */
+const geocodeRoad = (roadName: string, district?: string): { lat: number; lng: number } | undefined => {
+  const road = roadName.toLowerCase()
+  
+  // Major arterial roads
+  if (road.includes('yonge')) return { lat: 43.6532, lng: -79.3832 }
+  if (road.includes('bloor')) return { lat: 43.6667, lng: -79.3833 }
+  if (road.includes('danforth')) return { lat: 43.6833, lng: -79.3000 }
+  if (road.includes('queen')) return { lat: 43.6500, lng: -79.3833 }
+  if (road.includes('king')) return { lat: 43.6467, lng: -79.3833 }
+  if (road.includes('dundas')) return { lat: 43.6556, lng: -79.3833 }
+  if (road.includes('college')) return { lat: 43.6600, lng: -79.3900 }
+  if (road.includes('eglinton')) return { lat: 43.7067, lng: -79.3983 }
+  if (road.includes('lawrence')) return { lat: 43.7250, lng: -79.4000 }
+  if (road.includes('sheppard')) return { lat: 43.7615, lng: -79.4111 }
+  if (road.includes('finch')) return { lat: 43.7800, lng: -79.4167 }
+  if (road.includes('steeles')) return { lat: 43.8000, lng: -79.4167 }
+  if (road.includes('spadina')) return { lat: 43.6667, lng: -79.4000 }
+  if (road.includes('bathurst')) return { lat: 43.6667, lng: -79.4100 }
+  if (road.includes('dufferin')) return { lat: 43.6667, lng: -79.4333 }
+  if (road.includes('keele')) return { lat: 43.6667, lng: -79.4617 }
+  if (road.includes('avenue')) return { lat: 43.6900, lng: -79.3967 }
+  if (road.includes('dvp') || road.includes('don valley')) return { lat: 43.7000, lng: -79.3500 }
+  if (road.includes('gardiner')) return { lat: 43.6350, lng: -79.3900 }
+  if (road.includes('401')) return { lat: 43.7700, lng: -79.4167 }
+  
+  // District-based fallback
+  if (district) {
+    const districtCoords: Record<string, { lat: number; lng: number }> = {
+      'toronto': { lat: 43.6532, lng: -79.3832 },
+      'north york': { lat: 43.7615, lng: -79.4111 },
+      'scarborough': { lat: 43.7731, lng: -79.2578 },
+      'etobicoke': { lat: 43.6205, lng: -79.5132 },
+      'east york': { lat: 43.6890, lng: -79.3383 },
+      'york': { lat: 43.6890, lng: -79.4872 },
+    }
+    
+    const key = district.toLowerCase()
+    if (districtCoords[key]) return districtCoords[key]
+  }
+  
+  // Default to Toronto center
+  return { lat: 43.6532, lng: -79.3832 }
+}
+
+/**
  * Parse road restriction record to Disruption format
  */
 const parseRoadRestriction = (record: any, sourceUrl: string): Disruption | null => {
@@ -145,6 +225,23 @@ const parseRoadRestriction = (record: any, sourceUrl: string): Disruption | null
 
     // Parse dates (timestamps in milliseconds)
     const startDate = record.startTime ? parseInt(record.startTime) : Date.now()
+    const endDate = record.endTime ? parseInt(record.endTime) : undefined
+
+    // Extract enhanced fields
+    const district = record.district || record.area || undefined
+    const roadClass = record.roadClass || record.road_class || undefined
+    const contractor = record.contractor || undefined
+    const scheduleType = record.scheduleType as any || undefined
+    const impactLevel = record.maxImpact as any || record.currImpact as any || undefined
+    
+    // Calculate duration
+    const duration = calculateDuration(startDate, endDate)
+    
+    // Get onsite hours
+    const onsiteHours = parseOnsiteHours(record)
+    
+    // Geocode road
+    const coordinates = geocodeRoad(roadName, district)
 
     return {
       id: externalId,
@@ -154,6 +251,20 @@ const parseRoadRestriction = (record: any, sourceUrl: string): Disruption | null
       description: description.trim(),
       affectedLines: [],
       timestamp: startDate,
+      activePeriod: {
+        start: startDate,
+        end: endDate,
+      },
+      // Enhanced fields
+      coordinates,
+      district,
+      roadClass,
+      workType: workType !== 'false' ? workType : undefined,
+      contractor,
+      scheduleType,
+      duration,
+      impactLevel,
+      onsiteHours,
       sourceApi: 'Toronto Open Data - Road Restrictions',
       sourceUrl,
       rawData: record,
