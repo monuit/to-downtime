@@ -231,92 +231,115 @@ async function storeTCLSegments(geojson: TCLGeoJSON): Promise<number> {
   let stored = 0
 
   try {
+    console.log(`[${new Date().toISOString()}] ⏳ Clearing existing TCL data...`)
     logger.debug('   Clearing existing TCL data...')
     await client.query('DELETE FROM tcl_segments')
 
-    logger.debug('   Inserting TCL segments with geohash indexing...')
-    console.log('DEBUG: About to insert', geojson.features.length, 'features')
+    console.log(`[${new Date().toISOString()}] ⏳ Preparing batch insert (${geojson.features.length} segments)...`)
+    logger.debug(`   Preparing batch insert (${geojson.features.length} segments)...`)
     
     const features = geojson.features
+    const BATCH_SIZE = 500 // Optimize for network latency + memory
     
-    // Insert with geohash for spatial indexing (no PostGIS required!)
-    for (const [index, feature] of features.entries()) {
-      const props = feature.properties
-      
-      // Extract center point from geometry
-      const center = geohash.extractCenterFromGeometry(feature.geometry)
-      
-      if (center) {
-        // Calculate geohashes at different precision levels
-        const hash7 = geohash.encode(center.lat, center.lon, 7) // ~76m precision (street-level)
-        const hash6 = geohash.encode(center.lat, center.lon, 6) // ~610m precision (neighborhood)
+    // Begin transaction for all inserts
+    await client.query('BEGIN')
+    
+    try {
+      // Process in batches to balance memory usage and network round-trips
+      for (let batchStart = 0; batchStart < features.length; batchStart += BATCH_SIZE) {
+        const batchEnd = Math.min(batchStart + BATCH_SIZE, features.length)
+        const batch = features.slice(batchStart, batchEnd)
         
-        await client.query(`
-          INSERT INTO tcl_segments (
-            centreline_id,
-            street_name,
-            street_name_normalized,
-            feature_code,
-            feature_code_desc,
-            address_left_from,
-            address_left_to,
-            address_right_from,
-            address_right_to,
-            center_lat,
-            center_lng,
-            geohash_7,
-            geohash_6
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-        `, [
-          props.CENTRELINE_ID,
-          props.LINEAR_NAME_FULL,
-          normalizeStreetName(props.LINEAR_NAME_FULL),
-          props.FEATURE_CODE,
-          props.FEATURE_CODE_DESC,
-          props.LO_NUM_L ?? null,
-          props.HI_NUM_L ?? null,
-          props.LO_NUM_R ?? null,
-          props.HI_NUM_R ?? null,
-          center.lat,
-          center.lon,
-          hash7,
-          hash6
-        ])
-      } else {
-        // Insert without spatial data if geometry is invalid
-        await client.query(`
-          INSERT INTO tcl_segments (
-            centreline_id,
-            street_name,
-            street_name_normalized,
-            feature_code,
-            feature_code_desc,
-            address_left_from,
-            address_left_to,
-            address_right_from,
-            address_right_to
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-        `, [
-          props.CENTRELINE_ID,
-          props.LINEAR_NAME_FULL,
-          normalizeStreetName(props.LINEAR_NAME_FULL),
-          props.FEATURE_CODE,
-          props.FEATURE_CODE_DESC,
-          props.LO_NUM_L ?? null,
-          props.HI_NUM_L ?? null,
-          props.LO_NUM_R ?? null,
-          props.HI_NUM_R ?? null
-        ])
+        // Build multi-row INSERT statement
+        const values: any[] = []
+        const placeholders: string[] = []
+        let paramIndex = 1
+        
+        for (const feature of batch) {
+          const props = feature.properties
+          const center = geohash.extractCenterFromGeometry(feature.geometry)
+          
+          if (center) {
+            const hash7 = geohash.encode(center.lat, center.lon, 7)
+            const hash6 = geohash.encode(center.lat, center.lon, 6)
+            
+            values.push(
+              props.CENTRELINE_ID,
+              props.LINEAR_NAME_FULL,
+              normalizeStreetName(props.LINEAR_NAME_FULL),
+              props.FEATURE_CODE,
+              props.FEATURE_CODE_DESC,
+              props.LO_NUM_L ?? null,
+              props.HI_NUM_L ?? null,
+              props.LO_NUM_R ?? null,
+              props.HI_NUM_R ?? null,
+              center.lat,
+              center.lon,
+              hash7,
+              hash6
+            )
+            
+            placeholders.push(`($${paramIndex},$${paramIndex+1},$${paramIndex+2},$${paramIndex+3},$${paramIndex+4},$${paramIndex+5},$${paramIndex+6},$${paramIndex+7},$${paramIndex+8},$${paramIndex+9},$${paramIndex+10},$${paramIndex+11},$${paramIndex+12})`)
+            paramIndex += 13
+          } else {
+            // Insert without spatial data
+            values.push(
+              props.CENTRELINE_ID,
+              props.LINEAR_NAME_FULL,
+              normalizeStreetName(props.LINEAR_NAME_FULL),
+              props.FEATURE_CODE,
+              props.FEATURE_CODE_DESC,
+              props.LO_NUM_L ?? null,
+              props.HI_NUM_L ?? null,
+              props.LO_NUM_R ?? null,
+              props.HI_NUM_R ?? null,
+              null, null, null, null
+            )
+            
+            placeholders.push(`($${paramIndex},$${paramIndex+1},$${paramIndex+2},$${paramIndex+3},$${paramIndex+4},$${paramIndex+5},$${paramIndex+6},$${paramIndex+7},$${paramIndex+8},$${paramIndex+9},$${paramIndex+10},$${paramIndex+11},$${paramIndex+12})`)
+            paramIndex += 13
+          }
+        }
+        
+        if (placeholders.length > 0) {
+          const sql = `
+            INSERT INTO tcl_segments (
+              centreline_id,
+              street_name,
+              street_name_normalized,
+              feature_code,
+              feature_code_desc,
+              address_left_from,
+              address_left_to,
+              address_right_from,
+              address_right_to,
+              center_lat,
+              center_lng,
+              geohash_7,
+              geohash_6
+            ) VALUES ${placeholders.join(',')}
+          `
+          
+          await client.query(sql, values)
+          stored = batchEnd
+          
+          const pct = ((stored / features.length) * 100).toFixed(1)
+          console.log(`[${new Date().toISOString()}] ⏳ Inserted ${stored} / ${features.length} segments (${pct}%)`)
+          if (stored % 5000 === 0 || stored === features.length) {
+            logger.debug(`   Batch progress: ${stored} / ${features.length} (${pct}%)`)
+          }
+        }
       }
       
-      stored++
-      
-      if (stored % 1000 === 0) {
-        logger.debug(`   Inserted ${stored} / ${features.length} segments (${((stored / features.length) * 100).toFixed(1)}%)`)
-      }
+      await client.query('COMMIT')
+      console.log(`[${new Date().toISOString()}] ✅ Transaction committed - ${stored} segments inserted`)
+    } catch (error) {
+      await client.query('ROLLBACK')
+      throw error
     }
 
     // Record metadata
+    console.log(`[${new Date().toISOString()}] ⏳ Recording metadata...`)
     await client.query(`
       INSERT INTO tcl_metadata (
         last_fetched_at,
@@ -326,11 +349,12 @@ async function storeTCLSegments(geojson: TCLGeoJSON): Promise<number> {
       ) VALUES (NOW(), $1, $2, $3)
     `, [geojson.features.length, 0, 0])
 
+    console.log(`[${new Date().toISOString()}] ✅ Stored ${stored} TCL segments with geohash spatial indexing`)
     logger.debug(`   ✅ Stored ${stored} TCL segments with geohash spatial indexing`)
     
     return stored
   } catch (error) {
-    console.error(`DEBUG: Top-level error in storeTCLSegments:`, error)
+    console.error(`[${new Date().toISOString()}] ❌ Error storing TCL segments:`, error)
     logger.error(`   ❌ Error storing TCL segments:`, error)
     throw error
   } finally {
@@ -351,11 +375,13 @@ export async function fetchAndStoreTCL(): Promise<{
   const startTime = Date.now()
 
   try {
+    console.log(`[${new Date().toISOString()}] 📍 [TCL ETL] Starting Toronto Centreline data fetch...`)
     logger.debug('\n📍 [TCL ETL] Starting Toronto Centreline data fetch...')
 
     // Check if refresh needed
     const shouldRefresh = await needsRefresh()
     if (!shouldRefresh) {
+      console.log(`[${new Date().toISOString()}] 📍 [TCL ETL] Using cached TCL data`)
       const count = await pool.query('SELECT COUNT(*) FROM tcl_segments')
       return {
         success: true,
@@ -365,14 +391,19 @@ export async function fetchAndStoreTCL(): Promise<{
     }
 
     // Fetch from datastore to avoid raw GeoJSON download issues
+    console.log(`[${new Date().toISOString()}] ⏳ Fetching from CKAN datastore...`)
     const geojson = await fetchTCLFeaturesFromDatastore()
     
+    console.log(`[${new Date().toISOString()}] ⏳ Parsed ${geojson.features.length} features`)
     logger.debug(`   Parsed ${geojson.features.length} features`)
 
     // Store in database
+    console.log(`[${new Date().toISOString()}] ⏳ Starting database storage (this may take a few minutes)...`)
     const stored = await storeTCLSegments(geojson)
 
     const duration = Date.now() - startTime
+    console.log(`[${new Date().toISOString()}] ✅ [TCL ETL] Completed in ${(duration / 1000).toFixed(1)}s`)
+    console.log(`[${new Date().toISOString()}] ✅ Segments stored: ${stored}`)
     logger.debug(`\n✅ [TCL ETL] Completed in ${(duration / 1000).toFixed(1)}s`)
     logger.debug(`   Segments stored: ${stored}`)
 
@@ -383,6 +414,7 @@ export async function fetchAndStoreTCL(): Promise<{
     }
   } catch (error) {
     const duration = Date.now() - startTime
+    console.error(`[${new Date().toISOString()}] ❌ [TCL ETL] Failed after ${(duration / 1000).toFixed(1)}s:`, error)
     logger.error(`\n❌ [TCL ETL] Failed after ${(duration / 1000).toFixed(1)}s:`, error)
     
     return {

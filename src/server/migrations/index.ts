@@ -91,6 +91,7 @@ async function recordMigration(pool: Pool, migration: Migration): Promise<void> 
  * Runs all pending migrations
  */
 export async function runMigrations(pool: Pool): Promise<void> {
+  console.log(`[${new Date().toISOString()}] 🚀 Starting database migrations...`)
   logger.debug('🚀 Starting database migrations...')
 
   try {
@@ -105,21 +106,30 @@ export async function runMigrations(pool: Pool): Promise<void> {
       const alreadyExecuted = await isMigrationExecuted(pool, migration.id)
 
       if (alreadyExecuted) {
+        console.log(`[${new Date().toISOString()}] ⏭️  Skipping migration ${migration.id} (${migration.name}) - already executed`)
         logger.debug(`⏭️  Migration ${migration.id} (${migration.name}) already executed, skipping...`)
         skippedCount++
         continue
       }
 
+      console.log(`[${new Date().toISOString()}] ⏳ Running migration ${migration.id} (${migration.name})...`)
       logger.info(`▶️  Running migration ${migration.id} (${migration.name})...`)
+      
+      const startTime = Date.now()
       await migration.up(pool)
       await recordMigration(pool, migration)
       executedCount++
+      
+      const duration = Date.now() - startTime
+      console.log(`[${new Date().toISOString()}] ✅ Migration ${migration.id} completed in ${duration}ms`)
       logger.info(`✅ Migration ${migration.id} completed`)
     }
 
+    console.log(`[${new Date().toISOString()}] ✨ Migrations complete! Executed: ${executedCount}, Skipped: ${skippedCount}`)
     logger.debug(`\n✨ Migrations complete! Executed: ${executedCount}, Skipped: ${skippedCount}`)
 
   } catch (error) {
+    console.error(`[${new Date().toISOString()}] ❌ Migration failed:`, error)
     logger.error('❌ Migration failed:', error)
     throw error
   }
