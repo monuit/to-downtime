@@ -217,8 +217,8 @@ export async function parseGTFSRealtimeProtobuf(): Promise<{
         });
       })
       .on('error', reject)
-      .setTimeout(5000, function () {
-        (this as any).destroy();
+      .setTimeout(5000, function (this: any) {
+        this.destroy();
         reject(new Error('GTFS-RT request timeout'));
       })
       .end();
