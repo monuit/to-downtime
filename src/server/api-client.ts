@@ -56,6 +56,21 @@ export const fetchAllDisruptionData = async (): Promise<Disruption[]> => {
       sourceUrl: d.source_url,
       rawData: d.raw_data,
       lastFetchedAt: d.last_fetched_at ? new Date(d.last_fetched_at).getTime() : undefined,
+      
+      // Geographic and TCL data (from migration 004 & 005)
+      coordinates: d.coordinates || undefined,
+      district: d.district || undefined,
+      addressFull: d.address_full || undefined,
+      addressRange: d.address_range || undefined,
+      hasTclMatch: d.has_tcl_match || false,
+      tclMatches: d.tcl_matches || [],
+      
+      // Work categorization fields (from raw_data)
+      workType: d.raw_data?.workEventType || d.raw_data?.subType || undefined,
+      scheduleType: d.raw_data?.workPeriod || undefined,
+      impactLevel: d.raw_data?.maxImpact || d.raw_data?.currImpact || undefined,
+      roadClass: d.raw_data?.roadClass || undefined,
+      contractor: d.raw_data?.contractor || undefined,
     }))
 
   } catch (error) {
