@@ -18,7 +18,6 @@ import { initializeDatabase } from './db.js'
 import { etlScheduler } from './etl-scheduler.js'
 import { startServer } from './api-server.js'
 import { existsSync } from 'fs'
-import { execSync } from 'child_process'
 import path from 'path'
 import { fileURLToPath } from 'url'
 
@@ -29,17 +28,14 @@ const distPath = path.resolve(path.join(__dirname, '../../dist'))
 async function startup() {
   console.log('🚀 Toronto Downtime - Server Starting...\n')
 
-  // Check if dist folder exists, if not build it
+  // Check if dist folder exists
   if (!existsSync(distPath)) {
-    console.log('📦 dist/ folder not found, building frontend...')
-    try {
-      execSync('npm run build', { stdio: 'inherit' })
-      console.log('✅ Frontend build complete\n')
-    } catch (error) {
-      console.error('❌ Failed to build frontend:', error)
-      console.log('⚠️  Continuing anyway - API will work but frontend won\'t be served\n')
-    }
+    console.error('❌ ERROR: dist/ folder not found!')
+    console.error('   Make sure npm run build was executed during Railway build phase.')
+    console.error('   Dist path:', distPath)
+    process.exit(1)
   }
+  console.log('✅ Frontend build found at:', distPath)
 
   // Verify DATABASE_URL is loaded
   if (!process.env.DATABASE_URL) {
@@ -87,4 +83,7 @@ process.on('SIGINT', () => {
 })
 
 // Start the server
-startup()
+startup().catch((error) => {
+  console.error('❌ Unhandled error in startup:', error)
+  process.exit(1)
+})
