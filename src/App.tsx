@@ -12,7 +12,7 @@ import './components/RefreshTimer.css'
 import './components/Footer.css'
 
 function App() {
-  const { data, loading, error, lastUpdated } = useDataFetcher()
+  const { data, loading, error, lastUpdated, nextRefreshTime } = useDataFetcher()
   const setDisruptions = useDisruptionStore((state) => state.setDisruptions)
 
   useEffect(() => {
@@ -45,7 +45,7 @@ function App() {
       {/* Fixed overlay legend */}
       <Legend />
       
-      <Footer lastUpdated={lastUpdated} loading={loading} />
+      <Footer lastUpdated={lastUpdated} loading={loading} nextRefreshTime={nextRefreshTime} />
     </div>
   )
 }

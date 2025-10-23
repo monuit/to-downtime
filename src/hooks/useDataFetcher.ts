@@ -7,13 +7,29 @@ interface DataFetcherResult {
   loading: boolean
   error: string | null
   lastUpdated: Date | null
+  nextRefreshTime: Date | null
 }
 
 /**
- * Get random refresh interval between 5-30 seconds
+ * Get random refresh interval with weighted probability:
+ * - 75% chance: 30-90 seconds (preferred range)
+ * - 25% chance: 5-30 seconds (occasional faster refresh)
  */
-const getRandomRefreshInterval = (minMs: number = 5000, maxMs: number = 30000): number => {
-  return Math.floor(Math.random() * (maxMs - minMs + 1)) + minMs
+const getRandomRefreshInterval = (): number => {
+  const random = Math.random()
+  
+  // 75% of the time, use the preferred 30-90s range
+  if (random < 0.75) {
+    const minMs = 30000 // 30 seconds
+    const maxMs = 90000 // 90 seconds
+    return Math.floor(Math.random() * (maxMs - minMs + 1)) + minMs
+  } 
+  // 25% of the time, use the faster 5-30s range
+  else {
+    const minMs = 5000  // 5 seconds
+    const maxMs = 30000 // 30 seconds
+    return Math.floor(Math.random() * (maxMs - minMs + 1)) + minMs
+  }
 }
 
 /**
@@ -38,7 +54,8 @@ export const useDataFetcher = (): DataFetcherResult => {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
-  const [nextInterval, setNextInterval] = useState<number>(getRandomRefreshInterval())
+  const [nextRefreshTime, setNextRefreshTime] = useState<Date | null>(null)
+  const [currentInterval, setCurrentInterval] = useState<number>(getRandomRefreshInterval())
 
   useEffect(() => {
     const fetchData = async () => {
@@ -46,9 +63,13 @@ export const useDataFetcher = (): DataFetcherResult => {
       try {
         const result = await fetchDisruptionData()
         setData(result)
-        setLastUpdated(new Date())
+        const now = new Date()
+        setLastUpdated(now)
+        const nextInterval = getRandomRefreshInterval()
+        setCurrentInterval(nextInterval)
+        setNextRefreshTime(new Date(now.getTime() + nextInterval))
         setError(null)
-        console.log(`📊 Loaded ${result.length} disruptions`)
+        console.log(`📊 Loaded ${result.length} disruptions, next refresh in ${Math.floor(nextInterval / 1000)}s`)
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Unknown error')
         console.error('Failed to fetch disruptions:', err)
@@ -61,17 +82,12 @@ export const useDataFetcher = (): DataFetcherResult => {
     fetchData()
 
     // Set up interval with randomized duration
-    const currentInterval = getRandomRefreshInterval()
-    setNextInterval(currentInterval)
-
     const interval = setInterval(() => {
       fetchData()
-      // Randomize next interval
-      setNextInterval(getRandomRefreshInterval())
     }, currentInterval)
 
     return () => clearInterval(interval)
-  }, [])
+  }, [currentInterval])
 
-  return { data, loading, error, lastUpdated }
+  return { data, loading, error, lastUpdated, nextRefreshTime }
 }
