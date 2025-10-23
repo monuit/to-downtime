@@ -668,3 +668,64 @@
 *::-webkit-scrollbar-thumb:hover {
   background: rgba(100, 200, 255, 0.5);
 }
+
+/* VISUALIZATION CONTROLS */
+.layer-toggles {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.toggle-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+  font-size: 13px;
+  color: rgba(200, 220, 255, 0.8);
+  transition: color 0.2s ease;
+}
+
+.toggle-item:hover {
+  color: rgba(200, 220, 255, 1);
+}
+
+.toggle-item input[type='checkbox'] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: rgba(100, 200, 255, 0.8);
+}
+
+.scheme-selector {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+.scheme-btn {
+  padding: 8px 12px;
+  border: 1px solid rgba(100, 150, 200, 0.3);
+  background: rgba(20, 25, 45, 0.6);
+  color: rgba(200, 220, 255, 0.7);
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.scheme-btn:hover {
+  border-color: rgba(100, 150, 200, 0.6);
+  background: rgba(20, 25, 45, 0.9);
+  color: rgba(200, 220, 255, 1);
+}
+
+.scheme-btn.active {
+  border-color: rgba(100, 200, 255, 0.8);
+  background: rgba(100, 150, 200, 0.2);
+  color: rgba(100, 200, 255, 1);
+  box-shadow: 0 0 12px rgba(100, 150, 200, 0.3);
+}

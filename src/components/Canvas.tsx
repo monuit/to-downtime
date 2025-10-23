@@ -3,6 +3,7 @@ import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import gsap from 'gsap'
 import { useDisruptionStore } from '../store/disruptions'
+import { useTorontoVisualization } from '../hooks/useTorontoVisualization'
 import { latLonToPlane, TORONTO_LAT, TORONTO_LON, randomPointNearby } from '../utils/mercator'
 import { PingsSystem } from '../utils/pingsSystem'
 import { RippleRingsSystem } from '../utils/ripplesSystem'
@@ -10,6 +11,7 @@ import { RippleRingsSystem } from '../utils/ripplesSystem'
 export const Canvas: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null)
   const disruptions = useDisruptionStore((state) => state.disruptions)
+  const { routes, restrictions, colorScheme } = useTorontoVisualization()
 
   useEffect(() => {
     if (!containerRef.current) return
@@ -98,6 +100,125 @@ export const Canvas: React.FC = () => {
     mapMesh.receiveShadow = true
     mapMesh.position.z = -1
     scene.add(mapMesh)
+
+    // Create group for routes and restrictions
+    const dataVisualizationGroup = new THREE.Group()
+    scene.add(dataVisualizationGroup)
+
+    // Helper function to render transit routes as 3D tubes
+    const renderRoutes = () => {
+      // Clear previous routes
+      dataVisualizationGroup.children
+        .filter((child) => child.userData.type === 'route')
+        .forEach((child) => {
+          dataVisualizationGroup.remove(child)
+          if (child instanceof THREE.Mesh) {
+            child.geometry.dispose()
+            if (Array.isArray(child.material)) {
+              child.material.forEach((m) => m.dispose())
+            } else {
+              child.material.dispose()
+            }
+          }
+        })
+
+      // Render each route
+      routes.forEach((route) => {
+        // Convert lat/lon coordinates to plane coordinates
+        const pathPoints = route.coordinates.map((coord) => {
+          const planePos = latLonToPlane(coord.lat, coord.lon)
+          return new THREE.Vector3(planePos.x, 5, planePos.y)
+        })
+
+        if (pathPoints.length < 2) return
+
+        // Create curve from points
+        const curve = new THREE.CatmullRomCurve3(pathPoints)
+        const points = curve.getPoints(50)
+
+        // Calculate frequency-based thickness (logarithmic scale)
+        const baseWidth = Math.log(route.frequency + 1.7) * 2
+        const opacity = 0.4 + (route.frequency / 30) * 0.6
+
+        // Create tube geometry
+        const tubeCurve = new THREE.CatmullRomCurve3(points)
+        const tubeGeometry = new THREE.TubeGeometry(tubeCurve, 20, baseWidth, 8, false)
+
+        // Parse color
+        const color = new THREE.Color(route.color)
+
+        const tubeMaterial = new THREE.MeshPhongMaterial({
+          color: color,
+          emissive: color,
+          emissiveIntensity: 0.3,
+          transparent: true,
+          opacity: opacity,
+          wireframe: false,
+        })
+
+        const tubeMesh = new THREE.Mesh(tubeGeometry, tubeMaterial)
+        tubeMesh.castShadow = true
+        tubeMesh.receiveShadow = true
+        tubeMesh.userData.type = 'route'
+        tubeMesh.userData.routeId = route.routeId
+        tubeMesh.userData.routeName = route.routeName
+
+        dataVisualizationGroup.add(tubeMesh)
+      })
+    }
+
+    // Helper function to render road restrictions
+    const renderRestrictions = () => {
+      // Clear previous restrictions
+      dataVisualizationGroup.children
+        .filter((child) => child.userData.type === 'restriction')
+        .forEach((child) => {
+          dataVisualizationGroup.remove(child)
+          if (child instanceof THREE.Mesh) {
+            child.geometry.dispose()
+            if (Array.isArray(child.material)) {
+              child.material.forEach((m) => m.dispose())
+            } else {
+              child.material.dispose()
+            }
+          }
+        })
+
+      // Render each restriction as a cylinder marker
+      restrictions.forEach((restriction) => {
+        const planePos = latLonToPlane(restriction.coordinates.lat, restriction.coordinates.lon)
+
+        // Color by severity
+        const severityColors: Record<string, string> = {
+          severe: '#ff4444',
+          moderate: '#ffaa00',
+          minor: '#44ff44',
+        }
+
+        const cylinderGeometry = new THREE.CylinderGeometry(8, 8, 20, 16)
+        const cylinderMaterial = new THREE.MeshPhongMaterial({
+          color: new THREE.Color(severityColors[restriction.severity] || '#ffff00'),
+          emissive: new THREE.Color(severityColors[restriction.severity] || '#ffff00'),
+          emissiveIntensity: 0.5,
+          transparent: true,
+          opacity: 0.7,
+        })
+
+        const cylinderMesh = new THREE.Mesh(cylinderGeometry, cylinderMaterial)
+        cylinderMesh.position.set(planePos.x, 10, planePos.y)
+        cylinderMesh.castShadow = true
+        cylinderMesh.receiveShadow = true
+        cylinderMesh.userData.type = 'restriction'
+        cylinderMesh.userData.restrictionId = restriction.id
+        cylinderMesh.userData.severity = restriction.severity
+
+        dataVisualizationGroup.add(cylinderMesh)
+      })
+    }
+
+    // Initial render
+    renderRoutes()
+    renderRestrictions()
 
     // Ripple rings (Toronto-centered anomaly)
     const ripplesSystem = new RippleRingsSystem()
@@ -216,7 +337,7 @@ export const Canvas: React.FC = () => {
       renderer.dispose()
       containerRef.current?.removeChild(renderer.domElement)
     }
-  }, [disruptions])
+  }, [disruptions, routes, restrictions, colorScheme])
 
   return (
     <div

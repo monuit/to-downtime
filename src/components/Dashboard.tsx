@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react'
 import { useDisruptionStore } from '../store/disruptions'
+import { useTorontoVisualization } from '../hooks/useTorontoVisualization'
 import '../styles/Dashboard.css'
 
 interface DashboardProps {
@@ -8,8 +9,11 @@ interface DashboardProps {
 
 export const Dashboard: React.FC<DashboardProps> = ({ onFilterChange }) => {
   const disruptions = useDisruptionStore((state) => state.disruptions)
+  const { routes, restrictions, alerts, stats: vizStats, colorScheme, updateColorScheme } = useTorontoVisualization()
   const [filterMode, setFilterMode] = useState<'all' | 'live'>('live')
   const [selectedSeverity, setSelectedSeverity] = useState<string | null>(null)
+  const [showRoutesLayer, setShowRoutesLayer] = useState(true)
+  const [showRestrictionsLayer, setShowRestrictionsLayer] = useState(true)
 
   // Filter disruptions
   const filteredDisruptions = useMemo(() => {
@@ -89,38 +93,55 @@ export const Dashboard: React.FC<DashboardProps> = ({ onFilterChange }) => {
 
         <div className="status-metrics">
           <div className="metric">
-            <div className="metric-label">Total Detections</div>
-            <div className="metric-value">{stats.total}</div>
+            <div className="metric-label">Transit Routes</div>
+            <div className="metric-value">{vizStats.totalRoutes}</div>
           </div>
 
           <div className="metric">
-            <div className="metric-label">Active Signals</div>
-            <div className="metric-value">{stats.active}</div>
+            <div className="metric-label">Active Restrictions</div>
+            <div className="metric-value">{vizStats.totalRestrictions}</div>
           </div>
 
           <div className="metric">
-            <div className="metric-label">Samples Analyzed</div>
-            <div className="metric-value">{disruptions.length * 234}</div>
+            <div className="metric-label">Avg. Frequency</div>
+            <div className="metric-value">{vizStats.averageFrequency}</div>
           </div>
         </div>
 
-        {/* Frequency Analyzer */}
+        {/* Visualization Controls */}
         <div className="analyzer-section">
-          <h3>Frequency Analyzer</h3>
-          <div className="frequency-bars">
-            <div className="bar" style={{ height: '40%' }}></div>
-            <div className="bar" style={{ height: '60%' }}></div>
-            <div className="bar" style={{ height: '35%' }}></div>
-            <div className="bar" style={{ height: '75%' }}></div>
-            <div className="bar" style={{ height: '50%' }}></div>
-            <div className="bar" style={{ height: '45%' }}></div>
-            <div className="bar" style={{ height: '65%' }}></div>
-            <div className="bar" style={{ height: '55%' }}></div>
+          <h3>Visualization Layers</h3>
+          <div className="layer-toggles">
+            <label className="toggle-item">
+              <input
+                type="checkbox"
+                checked={showRoutesLayer}
+                onChange={(e) => setShowRoutesLayer(e.target.checked)}
+              />
+              <span>🚇 Transit Routes ({vizStats.totalRoutes})</span>
+            </label>
+            <label className="toggle-item">
+              <input
+                type="checkbox"
+                checked={showRestrictionsLayer}
+                onChange={(e) => setShowRestrictionsLayer(e.target.checked)}
+              />
+              <span>🛣️ Road Restrictions ({vizStats.totalRestrictions})</span>
+            </label>
           </div>
-          <div className="frequency-labels">
-            <span>0.1</span>
-            <span>ACTIVE BAND</span>
-            <span>10.0</span>
+
+          <h3 style={{ marginTop: '16px' }}>Color Scheme</h3>
+          <div className="scheme-selector">
+            {['default', 'pastel', 'inferno', 'earthy', 'cool'].map((scheme) => (
+              <button
+                key={scheme}
+                className={`scheme-btn ${colorScheme === scheme ? 'active' : ''}`}
+                onClick={() => updateColorScheme(scheme)}
+                title={scheme}
+              >
+                {scheme.charAt(0).toUpperCase() + scheme.slice(1)}
+              </button>
+            ))}
           </div>
         </div>
 
