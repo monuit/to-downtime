@@ -43,10 +43,10 @@
 
 /* LEFT side - Statistics dashboard */
 .stats-section {
-  width: 400px;
+  width: 280px;
   overflow-y: auto;
   background: rgba(10, 15, 25, 0.8);
-  padding: 20px;
+  padding: 16px;
   border-right: 1px solid rgba(100, 150, 200, 0.3);
 }
 
@@ -60,7 +60,7 @@
 /* Responsive */
 @media (max-width: 1200px) {
   .stats-section {
-    width: 350px;
+    width: 250px;
   }
 }
 
