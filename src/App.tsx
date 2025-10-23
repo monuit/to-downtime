@@ -3,6 +3,8 @@ import { Canvas } from './components/Canvas'
 import { Dashboard } from './components/Dashboard'
 import { RefreshTimer } from './components/RefreshTimer'
 import { Footer } from './components/Footer'
+import { Legend } from './components/Legend'
+import { DisruptionMapView } from './components/DisruptionMapView'
 import { useDisruptionStore } from './store/disruptions'
 import { useDataFetcher } from './hooks/useDataFetcher'
 import './styles/App.css'
@@ -31,10 +33,17 @@ function App() {
           <Dashboard />
         </div>
         
+        <div className="map-view-section">
+          <DisruptionMapView />
+        </div>
+        
         <div className="disruptions-section">
           <Canvas />
         </div>
       </div>
+      
+      {/* Fixed overlay legend */}
+      <Legend />
       
       <Footer lastUpdated={lastUpdated} loading={loading} />
     </div>
