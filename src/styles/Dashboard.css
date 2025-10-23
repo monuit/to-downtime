@@ -23,49 +23,49 @@
   align-items: center;
   gap: 2px;
   padding: 6px 8px;
-  background: rgba(100, 150, 200, 0.05);
+  background: #111;
   border-radius: 4px;
-  border: 1px solid rgba(100, 150, 200, 0.1);
+  border: 1px solid #222;
   flex: 1;
 }
 
 .stat-item.severe {
-  background: rgba(255, 68, 68, 0.1);
-  border-color: rgba(255, 68, 68, 0.3);
+  background: #1a0f0f;
+  border-color: #3a1f1f;
 }
 
 .stat-item.moderate {
-  background: rgba(255, 170, 0, 0.1);
-  border-color: rgba(255, 170, 0, 0.3);
+  background: #1a1510;
+  border-color: #3a2f20;
 }
 
 .stat-item.minor {
-  background: rgba(68, 255, 68, 0.1);
-  border-color: rgba(68, 255, 68, 0.3);
+  background: #0f1a0f;
+  border-color: #1f3a1f;
 }
 
 .stat-label {
   font-size: 9px;
   letter-spacing: 0.3px;
   text-transform: uppercase;
-  color: #a0aec0;
+  color: #666;
   font-weight: 600;
 }
 
 .stat-value {
   font-size: 16px;
   font-weight: 700;
-  color: #e2e8f0;
+  color: #999;
 }
 
 .stat-item.severe .stat-value {
-  color: #ff6666;
+  color: #ff4444;
 }
 
 .stat-item.moderate .stat-value {
-  color: #ffb833;
+  color: #ffaa00;
 }
 
 .stat-item.minor .stat-value {
-  color: #66ff66;
+  color: #44ff44;
 }
