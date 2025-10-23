@@ -14,14 +14,9 @@ const databaseUrl = process.env.DATABASE_URL || ''
 const urlPattern = /postgresql:\/\/([^:]+):([^@]+)@([^:]+):(\d+)\/(.+)/
 const match = databaseUrl.match(urlPattern)
 
-console.log('🔍 Debug - DATABASE_URL present:', !!databaseUrl)
-console.log('🔍 Debug - URL match:', !!match)
-if (match) {
-  console.log('🔍 Debug - User:', match[1])
-  console.log('🔍 Debug - Password type:', typeof match[2], 'Length:', match[2]?.length)
-  console.log('🔍 Debug - Host:', match[3])
-  console.log('🔍 Debug - Port:', match[4])
-  console.log('🔍 Debug - Database:', match[5])
+// Quiet mode - only log if there's an issue
+if (!match && databaseUrl) {
+  console.error('⚠️  Failed to parse DATABASE_URL')
 }
 
 const pool = new Pool(
@@ -134,15 +129,13 @@ export const initializeDatabase = async (): Promise<void> => {
       CREATE INDEX IF NOT EXISTS idx_hashes_content_hash ON disruption_hashes(content_hash);
     `)
 
-    console.log('✓ Database schema initialized with metadata tracking')
+    // Silent in quiet mode
   } finally {
     client.release()
   }
 
-  // Run pending migrations
-  console.log('\n📦 Running database migrations...')
+  // Run pending migrations (silent in quiet mode)
   await runMigrations(pool)
-  console.log('✓ Database setup complete\n')
 }
 
 /**
@@ -159,42 +152,96 @@ export const upsertDisruption = async (
     sourceApi?: string
     sourceUrl?: string
     rawData?: any
+    coordinates?: { lat: number; lng: number }
+    district?: string
   }
 ): Promise<any> => {
-  const query = `
-    INSERT INTO disruptions (
-      external_id, type, severity, title, description, affected_lines, 
-      source_api, source_url, raw_data, last_fetched_at, is_active
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, CURRENT_TIMESTAMP, TRUE)
-    ON CONFLICT (external_id) 
-    DO UPDATE SET
-      type = $2,
-      severity = $3,
-      title = $4,
-      description = $5,
-      affected_lines = $6,
-      source_api = $7,
-      source_url = $8,
-      raw_data = $9,
-      last_fetched_at = CURRENT_TIMESTAMP,
-      is_active = TRUE,
-      updated_at = CURRENT_TIMESTAMP
-    RETURNING *
-  `
+  // Try with coordinates columns first (post-migration)
+  // If that fails, fall back to columns without coordinates
+  try {
+    const query = `
+      INSERT INTO disruptions (
+        external_id, type, severity, title, description, affected_lines, 
+        source_api, source_url, raw_data, coordinates_lat, coordinates_lng, district, last_fetched_at, is_active
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, CURRENT_TIMESTAMP, TRUE)
+      ON CONFLICT (external_id) 
+      DO UPDATE SET
+        type = $2,
+        severity = $3,
+        title = $4,
+        description = $5,
+        affected_lines = $6,
+        source_api = $7,
+        source_url = $8,
+        raw_data = $9,
+        coordinates_lat = $10,
+        coordinates_lng = $11,
+        district = $12,
+        last_fetched_at = CURRENT_TIMESTAMP,
+        is_active = TRUE,
+        updated_at = CURRENT_TIMESTAMP
+      RETURNING *
+    `
 
-  const result = await pool.query(query, [
-    externalId,
-    data.type,
-    data.severity,
-    data.title,
-    data.description || null,
-    data.affectedLines || null,
-    data.sourceApi || null,
-    data.sourceUrl || null,
-    data.rawData ? JSON.stringify(data.rawData) : null,
-  ])
+    const result = await pool.query(query, [
+      externalId,
+      data.type,
+      data.severity,
+      data.title,
+      data.description || null,
+      data.affectedLines || null,
+      data.sourceApi || null,
+      data.sourceUrl || null,
+      data.rawData ? JSON.stringify(data.rawData) : null,
+      data.coordinates?.lat || null,
+      data.coordinates?.lng || null,
+      data.district || null,
+    ])
 
-  return result.rows[0]
+    return result.rows[0]
+  } catch (coordinatesError) {
+    // Fallback: Try without coordinates columns (pre-migration)
+    if ((coordinatesError as any)?.message?.includes('column')) {
+      console.debug('⚠️  Coordinates columns not yet available, using fallback')
+      const fallbackQuery = `
+        INSERT INTO disruptions (
+          external_id, type, severity, title, description, affected_lines, 
+          source_api, source_url, raw_data, last_fetched_at, is_active
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, CURRENT_TIMESTAMP, TRUE)
+        ON CONFLICT (external_id) 
+        DO UPDATE SET
+          type = $2,
+          severity = $3,
+          title = $4,
+          description = $5,
+          affected_lines = $6,
+          source_api = $7,
+          source_url = $8,
+          raw_data = $9,
+          last_fetched_at = CURRENT_TIMESTAMP,
+          is_active = TRUE,
+          updated_at = CURRENT_TIMESTAMP
+        RETURNING *
+      `
+
+      const result = await pool.query(fallbackQuery, [
+        externalId,
+        data.type,
+        data.severity,
+        data.title,
+        data.description || null,
+        data.affectedLines || null,
+        data.sourceApi || null,
+        data.sourceUrl || null,
+        data.rawData ? JSON.stringify(data.rawData) : null,
+      ])
+
+      return result.rows[0]
+    }
+    
+    // If it's a different error, re-throw it
+    throw coordinatesError
+  }
 }
 
 /**
@@ -314,17 +361,118 @@ export const getArchiveStats = async (): Promise<any> => {
 }
 
 /**
- * Get all active disruptions
+ * Get all active disruptions (with address data from TCL and coordinates)
  */
 export const getAllDisruptions = async (): Promise<any[]> => {
-  const query = `
-    SELECT * FROM disruptions
-    WHERE is_active = TRUE
-    ORDER BY created_at DESC
-  `
+  try {
+    // Try with coordinates columns first (post-migration)
+    const query = `
+      SELECT 
+        d.id,
+        d.external_id,
+        d.type,
+        d.severity,
+        d.title,
+        d.description,
+        d.affected_lines,
+        d.source_api,
+        d.source_url,
+        d.raw_data,
+        d.created_at,
+        d.updated_at,
+        d.resolved_at,
+        d.is_active,
+        d.address_full,
+        d.address_range,
+        d.has_tcl_match,
+        d.coordinates_lat,
+        d.coordinates_lng,
+        d.district,
+        CASE 
+          WHEN d.coordinates_lat IS NOT NULL AND d.coordinates_lng IS NOT NULL
+          THEN jsonb_build_object('lat', d.coordinates_lat, 'lng', d.coordinates_lng)
+          ELSE NULL
+        END as coordinates,
+        COALESCE(
+          json_agg(
+            DISTINCT jsonb_build_object(
+              'street_name', s.street_name,
+              'address_range', CONCAT_WS('-', 
+                LEAST(NULLIF(s.address_left_from, 0), NULLIF(s.address_right_from, 0)),
+                GREATEST(NULLIF(s.address_left_to, 0), NULLIF(s.address_right_to, 0))
+              ),
+              'match_type', m.match_type,
+              'confidence', m.match_confidence
+            )
+          ) FILTER (WHERE m.id IS NOT NULL),
+          '[]'::json
+        ) as tcl_matches
+      FROM disruptions d
+      LEFT JOIN disruption_tcl_mapping m ON d.external_id = m.disruption_external_id
+      LEFT JOIN tcl_segments s ON m.tcl_segment_id = s.id
+      WHERE d.is_active = TRUE
+      GROUP BY d.id
+      ORDER BY d.created_at DESC
+    `
 
-  const result = await pool.query(query)
-  return result.rows
+    const result = await pool.query(query)
+    return result.rows
+  } catch (coordinatesError) {
+    // Fallback: Try without coordinates columns (pre-migration)
+    if ((coordinatesError as any)?.message?.includes('column')) {
+      console.debug('⚠️  Coordinates columns not yet available, using fallback')
+      const fallbackQuery = `
+        SELECT 
+          d.id,
+          d.external_id,
+          d.type,
+          d.severity,
+          d.title,
+          d.description,
+          d.affected_lines,
+          d.source_api,
+          d.source_url,
+          d.raw_data,
+          d.created_at,
+          d.updated_at,
+          d.resolved_at,
+          d.is_active,
+          d.address_full,
+          d.address_range,
+          d.has_tcl_match,
+          NULL::decimal as coordinates_lat,
+          NULL::decimal as coordinates_lng,
+          NULL::varchar as district,
+          NULL as coordinates,
+          COALESCE(
+            json_agg(
+              DISTINCT jsonb_build_object(
+                'street_name', s.street_name,
+                'address_range', CONCAT_WS('-', 
+                  LEAST(NULLIF(s.address_left_from, 0), NULLIF(s.address_right_from, 0)),
+                  GREATEST(NULLIF(s.address_left_to, 0), NULLIF(s.address_right_to, 0))
+                ),
+                'match_type', m.match_type,
+                'confidence', m.match_confidence
+              )
+            ) FILTER (WHERE m.id IS NOT NULL),
+            '[]'::json
+          ) as tcl_matches
+        FROM disruptions d
+        LEFT JOIN disruption_tcl_mapping m ON d.external_id = m.disruption_external_id
+        LEFT JOIN tcl_segments s ON m.tcl_segment_id = s.id
+        WHERE d.is_active = TRUE
+        GROUP BY d.id
+        ORDER BY d.created_at DESC
+      `
+
+      const result = await pool.query(fallbackQuery)
+      return result.rows
+    }
+    
+    // If it's a different error, re-throw it
+    throw coordinatesError
+  }
 }
 
 /**

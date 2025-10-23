@@ -8,6 +8,10 @@
 import { Pool } from 'pg'
 import * as migration001 from './001_add_metadata_columns.js'
 import * as migration002 from './002_add_performance_indexes.js'
+import * as migration003 from './003_add_tcl_tables.js'
+import * as migration004 from './004_add_coordinates_geometry.js'
+import * as migration005 from './005_add_geohash_indexing.js'
+import { logger } from '../logger.js'
 
 interface Migration {
   id: string
@@ -28,6 +32,24 @@ const migrations: Migration[] = [
     name: 'add_performance_indexes',
     up: migration002.up,
     down: migration002.down,
+  },
+  {
+    id: '003',
+    name: 'add_tcl_tables',
+    up: migration003.up,
+    down: migration003.down,
+  },
+  {
+    id: '004',
+    name: 'add_coordinates_geometry',
+    up: migration004.up,
+    down: migration004.down,
+  },
+  {
+    id: '005',
+    name: 'add_geohash_indexing',
+    up: migration005.up,
+    down: migration005.down,
   },
 ]
 
@@ -69,7 +91,7 @@ async function recordMigration(pool: Pool, migration: Migration): Promise<void> 
  * Runs all pending migrations
  */
 export async function runMigrations(pool: Pool): Promise<void> {
-  console.log('🚀 Starting database migrations...')
+  logger.debug('🚀 Starting database migrations...')
 
   try {
     // Ensure migrations table exists
@@ -83,22 +105,22 @@ export async function runMigrations(pool: Pool): Promise<void> {
       const alreadyExecuted = await isMigrationExecuted(pool, migration.id)
 
       if (alreadyExecuted) {
-        console.log(`⏭️  Migration ${migration.id} (${migration.name}) already executed, skipping...`)
+        logger.debug(`⏭️  Migration ${migration.id} (${migration.name}) already executed, skipping...`)
         skippedCount++
         continue
       }
 
-      console.log(`▶️  Running migration ${migration.id} (${migration.name})...`)
+      logger.info(`▶️  Running migration ${migration.id} (${migration.name})...`)
       await migration.up(pool)
       await recordMigration(pool, migration)
       executedCount++
-      console.log(`✅ Migration ${migration.id} completed`)
+      logger.info(`✅ Migration ${migration.id} completed`)
     }
 
-    console.log(`\n✨ Migrations complete! Executed: ${executedCount}, Skipped: ${skippedCount}`)
+    logger.debug(`\n✨ Migrations complete! Executed: ${executedCount}, Skipped: ${skippedCount}`)
 
   } catch (error) {
-    console.error('❌ Migration failed:', error)
+    logger.error('❌ Migration failed:', error)
     throw error
   }
 }
