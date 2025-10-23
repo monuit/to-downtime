@@ -113,50 +113,42 @@ const fetchResourceData = (url: string): Promise<any> => {
  */
 const parseRoadRestriction = (record: any, sourceUrl: string): Disruption | null => {
   try {
-    // Extract relevant fields from the record
-    const title = record.road_class || 
-                 record.restriction_type || 
-                 record.location || 
-                 'Road Restriction'
+    // Extract relevant fields from the Toronto Open Data format
+    const roadName = record.road || record.street_name || record.location || 'Unknown Road'
+    const restrictionName = record.name || ''
+    const workType = record.workEventType || record.work_type || 'Road Work'
+    
+    const title = restrictionName || `${workType} on ${roadName}`
     
     const description = record.description || 
-                       record.details || 
-                       record.work_type ||
-                       `${record.location || 'Road restriction'} - ${record.restriction_type || 'Active restriction'}`
+                       `${workType} - ${restrictionName}`.trim()
     
-    const location = record.location || 
-                    record.street_name || 
-                    record.address ||
-                    ''
+    const location = record.name || roadName
 
-    // Determine severity
+    // Determine severity based on maxImpact or currImpact
     let severity: Disruption['severity'] = 'minor'
-    const restrictionType = (record.restriction_type || '').toLowerCase()
-    const workType = (record.work_type || '').toLowerCase()
+    const maxImpact = (record.maxImpact || '').toLowerCase()
+    const currImpact = (record.currImpact || '').toLowerCase()
+    const type = (record.type || '').toLowerCase()
     
-    if (restrictionType.includes('closed') || 
-        restrictionType.includes('closure') ||
-        workType.includes('emergency')) {
+    if (maxImpact === 'high' || currImpact === 'high' || type === 'road_closed') {
       severity = 'severe'
-    } else if (restrictionType.includes('lane') || 
-               restrictionType.includes('partial') ||
-               workType.includes('construction')) {
+    } else if (maxImpact === 'medium' || currImpact === 'medium') {
       severity = 'moderate'
     }
 
     // Generate external ID
-    const externalId = record._id || 
-                      record.id || 
+    const externalId = record.id || 
                       `road-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
 
-    // Parse dates
-    const startDate = record.start_date ? new Date(record.start_date).getTime() : Date.now()
+    // Parse dates (timestamps in milliseconds)
+    const startDate = record.startTime ? parseInt(record.startTime) : Date.now()
 
     return {
       id: `road-${externalId}`,
       type: 'road',
       severity,
-      title: `🚧 ${title}${location ? ` - ${location}` : ''}`,
+      title: `🚧 ${title}`,
       description: description.trim(),
       affectedLines: [],
       timestamp: startDate,
@@ -224,6 +216,9 @@ export const fetchRoadRestrictions = async (): Promise<{
           // Handle different formats
           if (Array.isArray(resourceData)) {
             records = resourceData
+          } else if (resourceData.Closure) {
+            // Toronto Open Data road restrictions format
+            records = resourceData.Closure
           } else if (resourceData.records) {
             records = resourceData.records
           } else if (resourceData.result?.records) {
