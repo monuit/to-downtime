@@ -1,90 +1,29 @@
 import { Disruption } from '../store/disruptions'
 
 /**
- * Mock data for development/demo
+ * API Client for Frontend
+ * 
+ * Connects to Express API server (Railway deployment)
+ * - Uses relative paths (same domain - no CORS issues)
+ * - Fetches disruptions from Postgres database
+ * - Data refreshed by background ETL scheduler (5-30s intervals)
+ * 
+ * NO MOCK DATA - All data from real Toronto Open Data via CKAN API
  */
-const MOCK_DISRUPTIONS: Disruption[] = [
-  {
-    id: 'ttc-line-1-a',
-    type: 'subway',
-    severity: 'severe',
-    title: '🚇 Line 1 Yonge-University - Major Delays',
-    description: 'Signal problems causing major delays. Expected to clear by 7:00 PM',
-    affectedLines: ['1'],
-    timestamp: Date.now(),
-  },
-  {
-    id: 'ttc-line-2-b',
-    type: 'subway',
-    severity: 'moderate',
-    title: '� Line 2 Bloor-Danforth - Single Tracking',
-    description: 'Construction work requires single-track operation. Minor delays expected',
-    affectedLines: ['2'],
-    timestamp: Date.now(),
-  },
-  {
-    id: 'ttc-streetcar-505',
-    type: 'streetcar',
-    severity: 'moderate',
-    title: '🚊 Streetcar 505 Dundas - Detour',
-    description: 'Temporary service detour due to road work on Dundas West',
-    affectedLines: ['505'],
-    timestamp: Date.now(),
-  },
-  {
-    id: 'ttc-bus-301',
-    type: 'bus',
-    severity: 'minor',
-    title: '� Bus 301 - Route Change',
-    description: 'Temporary route change due to construction. Use 302 as alternate',
-    affectedLines: ['301'],
-    timestamp: Date.now(),
-  },
-  {
-    id: 'road-1',
-    type: 'road',
-    severity: 'moderate',
-    title: '� Gardiner Expressway - Lane Closure',
-    description: 'Eastbound lanes closed between Simcoe and Bay due to emergency repairs',
-    affectedLines: [],
-    timestamp: Date.now(),
-  },
-  {
-    id: 'road-2',
-    type: 'road',
-    severity: 'minor',
-    title: '🚧 King Street - Temporary Closure',
-    description: 'Westbound: Partial closure between Simcoe and Bay, 9 AM - 5 PM',
-    affectedLines: [],
-    timestamp: Date.now(),
-  },
-  {
-    id: 'elevator-1',
-    type: 'elevator',
-    severity: 'moderate',
-    title: '🛗 Bloor Station - Elevator Maintenance',
-    description: 'North elevator out of service for scheduled maintenance',
-    affectedLines: [],
-    timestamp: Date.now(),
-  },
-  {
-    id: 'escalator-1',
-    type: 'escalator',
-    severity: 'minor',
-    title: '🪜 Yonge Station - Escalator Repair',
-    description: 'South escalator undergoing routine maintenance, station remains accessible',
-    affectedLines: [],
-    timestamp: Date.now(),
-  },
-]
 
 /**
- * Fetch TTC GTFS-Realtime data
+ * Fetch all disruptions from database
+ * Returns data stored by background ETL process
  */
-const fetchTTCData = async (): Promise<Disruption[]> => {
+export const fetchAllDisruptionData = async (): Promise<Disruption[]> => {
   try {
-    // Try to fetch real TTC data
-    const response = await fetch('https://api.ttc.ca/gtfs/alerts', {
+    // Use relative path in production (same Railway domain)
+    // Override with VITE_API_URL in development if needed
+    const apiUrl = import.meta.env.VITE_API_URL || '/api/disruptions'
+    
+    console.log(`📡 Fetching disruptions from ${apiUrl}...`)
+    
+    const response = await fetch(apiUrl, {
       method: 'GET',
       headers: {
         'Accept': 'application/json',
@@ -92,112 +31,79 @@ const fetchTTCData = async (): Promise<Disruption[]> => {
       cache: 'no-store',
     })
 
-    if (!response.ok) return []
+    if (!response.ok) {
+      throw new Error(`API returned ${response.status}: ${response.statusText}`)
+    }
 
-    const data = await response.json()
+    const result = await response.json()
+    
+    if (!result.success) {
+      throw new Error(result.error || 'API returned success=false')
+    }
 
-    // Parse TTC alerts
-    return (data.alerts || []).map((alert: any, idx: number) => ({
-      id: `ttc-${alert.id || idx}`,
-      type: 'transit',
-      severity: alert.severity || 'moderate',
-      title: alert.header_text?.translation?.[0]?.text || 'TTC Alert',
-      description: alert.description_text?.translation?.[0]?.text || 'Service alert',
-      affectedLines: alert.informed_entity?.map((e: any) => e.route_id).filter(Boolean) || [],
-      timestamp: Date.now(),
+    console.log(`✅ Fetched ${result.count} disruptions from database`)
+    
+    // Map database format to frontend Disruption type
+    return result.data.map((d: any) => ({
+      id: d.external_id,
+      type: d.type,
+      severity: d.severity,
+      title: d.title,
+      description: d.description,
+      affectedLines: d.affected_lines || [],
+      timestamp: new Date(d.created_at).getTime(),
+      sourceApi: d.source_api,
+      sourceUrl: d.source_url,
+      rawData: d.raw_data,
+      lastFetchedAt: d.last_fetched_at ? new Date(d.last_fetched_at).getTime() : undefined,
     }))
+
   } catch (error) {
-    console.warn('Failed to fetch real TTC data, returning mock data')
-    return MOCK_DISRUPTIONS.filter(d => ['subway', 'bus', 'streetcar'].includes(d.type))
+    console.error('❌ Error fetching disruption data:', error)
+    
+    // Return empty array on error (graceful degradation)
+    return []
   }
 }
 
-/**
- * Fetch Toronto Open Data - Road Restrictions
- */
-const fetchRoadData = async (): Promise<Disruption[]> => {
-  try {
-    const response = await fetch(
-      'https://ckan0.cf.opendata.inter.prod-toronto.ca/api/3/action/datastore_search?resource_id=76213764-39c7-4826-9269-26bbd166f726&limit=100',
-      { cache: 'no-store' }
-    )
-
-    if (!response.ok) return []
-
-    const data = await response.json()
-    const records = data.result?.records || []
-
-    return records.map((record: any, idx: number) => ({
-      id: `road-${record['_id'] || idx}`,
-      type: 'road' as const,
-      severity: record.severity?.toLowerCase() || 'minor',
-      title: record.restriction_type || 'Road Restriction',
-      description: record.details || 'Active road restriction',
-      affectedLines: [],
-      timestamp: new Date(record.start_date || Date.now()).getTime(),
-    }))
-  } catch (error) {
-    console.warn('Failed to fetch real road data, returning mock data')
-    return MOCK_DISRUPTIONS.filter(d => d.type === 'road')
-  }
-}
 
 /**
- * Fetch Toronto Open Data - Transit Alerts
+ * Trigger manual sync (refresh data from Toronto Open Data)
+ * Background ETL already runs every 5-30s, but this allows on-demand refresh
  */
-const fetchTransitAlertsData = async (): Promise<Disruption[]> => {
+export const triggerSync = async (): Promise<{
+  success: boolean
+  stats?: any
+  error?: string
+}> => {
   try {
-    const response = await fetch(
-      'https://ckan0.cf.opendata.inter.prod-toronto.ca/api/3/action/datastore_search?resource_id=a5b9ac21-d8fc-4a5e-99cf-7b583d959d8e&limit=100',
-      { cache: 'no-store' }
-    )
-
-    if (!response.ok) return []
-
-    const data = await response.json()
-    const records = data.result?.records || []
-
-    return records.map((record: any, idx: number) => ({
-      id: `alert-${record['_id'] || idx}`,
-      type: (record.service_type?.toLowerCase() || 'elevator') as 'elevator' | 'escalator',
-      severity: record.priority?.toLowerCase() || 'moderate',
-      title: record.alert_type || 'Alert',
-      description: record.alert_description || 'Service notification',
-      affectedLines: record.route ? [record.route] : [],
-      timestamp: new Date(record.alert_date || Date.now()).getTime(),
-    }))
-  } catch (error) {
-    console.warn('Failed to fetch real transit alerts, returning mock data')
-    return MOCK_DISRUPTIONS.filter(d => ['elevator', 'escalator'].includes(d.type))
-  }
-}
-
-/**
- * Fetch all disruption data from multiple sources
- */
-export const fetchAllDisruptionData = async (): Promise<Disruption[]> => {
-  try {
-    const [ttcData, roadData, alertsData] = await Promise.all([
-      fetchTTCData(),
-      fetchRoadData(),
-      fetchTransitAlertsData(),
-    ])
-
-    const allData = [...ttcData, ...roadData, ...alertsData]
-
-    // Deduplicate by content hash
-    const seen = new Set<string>()
-    const deduped = allData.filter((item) => {
-      const hash = `${item.type}-${item.severity}-${item.title}`
-      if (seen.has(hash)) return false
-      seen.add(hash)
-      return true
+    const apiUrl = import.meta.env.VITE_API_URL || '/api/sync'
+    
+    console.log(`🔄 Triggering manual sync from ${apiUrl}...`)
+    
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
     })
 
-    console.log(`✅ Fetched ${deduped.length} disruptions (${ttcData.length} TTC, ${roadData.length} Road, ${alertsData.length} Alerts)`)
-    return deduped
+    if (!response.ok) {
+      throw new Error(`API returned ${response.status}: ${response.statusText}`)
+    }
+
+    const result = await response.json()
+    
+    console.log(`✅ Sync completed:`, result)
+    return {
+      success: true,
+      stats: result.stats || { fetched: result.fetched || 0 },
+    }
   } catch (error) {
-    console.error('Failed to fetch disruption data:', error)
-    return []
+    console.error('❌ Error triggering sync:', error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    }
   }
 }
