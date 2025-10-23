@@ -21,16 +21,22 @@ function App() {
 
   return (
     <div className="app-container">
-      <Canvas />
-      
-      <div className="ui-overlay">
-        <div className="header">
-          <h1>🚇 Toronto Downtime</h1>
-          <p>Real-time Transit & Road Disruptions</p>
-        </div>
+      <div className="header">
+        <h1>🚇 Toronto Downtime</h1>
+        <p>Real-time Transit & Road Disruptions</p>
         <RefreshTimer lastUpdated={lastUpdated} loading={loading} />
       </div>
-      <Dashboard />
+      
+      <div className="main-content">
+        <div className="disruptions-section">
+          <Canvas />
+        </div>
+        
+        <div className="stats-section">
+          <Dashboard />
+        </div>
+      </div>
+      
       <Footer />
     </div>
   )
