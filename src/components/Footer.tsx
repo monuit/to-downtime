@@ -30,12 +30,8 @@ export const Footer: React.FC<FooterProps> = ({ lastUpdated, loading }) => {
         <div className="footer-section">
           <p className="footer-label">Data Sources</p>
           <div className="footer-links">
-            <a href="https://opendata.toronto.ca" target="_blank" rel="noopener noreferrer">
+            <a href="https://open.toronto.ca/" target="_blank" rel="noopener noreferrer">
               Open Data Toronto
-            </a>
-            <span className="separator">•</span>
-            <a href="https://www.ttc.ca" target="_blank" rel="noopener noreferrer">
-              TTC GTFS-RT
             </a>
           </div>
         </div>
