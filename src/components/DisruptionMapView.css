@@ -1,0 +1,155 @@
+/* Map View Section - Middle Column */
+
+.map-view-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: #0a0a0a;
+  border-left: 1px solid #222;
+  border-right: 1px solid #222;
+}
+
+.map-view-header {
+  padding: 1rem;
+  border-bottom: 1px solid #222;
+  background: #0a0a0a;
+}
+
+.map-view-header h3 {
+  margin: 0 0 0.5rem 0;
+  font-size: 1rem;
+  color: #fff;
+  font-family: 'Geist Mono', monospace;
+}
+
+.map-hint {
+  margin: 0;
+  font-size: 0.75rem;
+  color: #666;
+  font-family: 'Geist Mono', monospace;
+}
+
+.map-view-map {
+  flex: 1;
+  background: #1a1a1a;
+}
+
+/* Custom Marker Styles */
+
+.map-view-marker {
+  width: 50px;
+  height: 50px;
+  position: relative;
+  cursor: pointer;
+}
+
+.map-view-marker .marker-pulse {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  animation: mapPulse 2s ease-out infinite;
+  z-index: 1;
+}
+
+.map-view-marker .marker-pin {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 3px solid white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: bold;
+  color: white;
+  font-family: 'Geist Mono', monospace;
+  z-index: 2;
+}
+
+@keyframes mapPulse {
+  0% {
+    transform: scale(0.8);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 0.5;
+  }
+  100% {
+    transform: scale(1.4);
+    opacity: 0;
+  }
+}
+
+/* Popup Styles */
+
+.map-popup {
+  font-family: 'Geist Mono', monospace;
+  min-width: 200px;
+  max-width: 300px;
+}
+
+.popup-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.popup-emoji {
+  font-size: 1.5rem;
+}
+
+.popup-severity {
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  font-weight: bold;
+  color: white;
+}
+
+.popup-description {
+  margin-bottom: 0.5rem;
+  font-size: 0.85rem;
+  line-height: 1.4;
+  color: #333;
+}
+
+.popup-lines {
+  padding-top: 0.5rem;
+  border-top: 1px solid #ddd;
+  font-size: 0.75rem;
+  color: #666;
+}
+
+.popup-station {
+  padding-top: 0.25rem;
+  font-size: 0.75rem;
+  color: #666;
+}
+
+/* Mobile responsive */
+@media (max-width: 968px) {
+  .map-view-container {
+    border-left: none;
+    border-right: none;
+    border-bottom: 1px solid #222;
+  }
+  
+  .map-view-header {
+    padding: 0.75rem;
+  }
+  
+  .map-view-header h3 {
+    font-size: 0.9rem;
+  }
+  
+  .map-hint {
+    font-size: 0.7rem;
+  }
+}
