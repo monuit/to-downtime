@@ -7,41 +7,62 @@ interface FooterProps {
   nextRefreshTime?: Date | null
 }
 
+type FreshnessLevel = 'fresh' | 'aging' | 'stale'
+
 export const Footer: React.FC<FooterProps> = ({ lastUpdated, loading, nextRefreshTime }) => {
   const [countdown, setCountdown] = useState<string>('')
+  const [freshness, setFreshness] = useState<FreshnessLevel>('fresh')
 
   useEffect(() => {
-    if (!nextRefreshTime) {
+    if (!lastUpdated) {
       setCountdown('--')
+      setFreshness('stale')
       return
     }
 
-    const updateCountdown = () => {
+    const updateStatus = () => {
       const now = new Date().getTime()
-      const target = nextRefreshTime.getTime()
-      const diff = target - now
+      const lastUpdateTime = lastUpdated.getTime()
+      const ageInSeconds = Math.floor((now - lastUpdateTime) / 1000)
 
-      if (diff <= 0) {
-        setCountdown('Refreshing...')
-        return
+      // Calculate freshness level based on age
+      if (ageInSeconds < 30) {
+        setFreshness('fresh')
+      } else if (ageInSeconds < 60) {
+        setFreshness('aging')
+      } else {
+        setFreshness('stale')
       }
 
-      const seconds = Math.floor(diff / 1000)
-      const minutes = Math.floor(seconds / 60)
-      const remainingSeconds = seconds % 60
+      // Calculate countdown if we have nextRefreshTime
+      if (nextRefreshTime) {
+        const target = nextRefreshTime.getTime()
+        const diff = target - now
 
-      if (minutes > 0) {
-        setCountdown(`${minutes}m ${remainingSeconds}s`)
+        if (diff <= 0) {
+          setCountdown('Refreshing...')
+          return
+        }
+
+        const seconds = Math.floor(diff / 1000)
+        const minutes = Math.floor(seconds / 60)
+        const remainingSeconds = seconds % 60
+
+        if (minutes > 0) {
+          setCountdown(`${minutes}m ${remainingSeconds}s`)
+        } else {
+          setCountdown(`${remainingSeconds}s`)
+        }
       } else {
-        setCountdown(`${remainingSeconds}s`)
+        setCountdown(`${ageInSeconds}s ago`)
       }
     }
 
-    updateCountdown()
-    const interval = setInterval(updateCountdown, 1000)
+    updateStatus()
+    const interval = setInterval(updateStatus, 1000)
 
     return () => clearInterval(interval)
-  }, [nextRefreshTime])
+  }, [nextRefreshTime, lastUpdated])
 
   const formatTime = (date: Date | null) => {
     if (!date) return 'Never'
@@ -51,6 +72,32 @@ export const Footer: React.FC<FooterProps> = ({ lastUpdated, loading, nextRefres
       second: '2-digit',
       hour12: false 
     })
+  }
+
+  const getFreshnessColor = (): string => {
+    switch (freshness) {
+      case 'fresh':
+        return '#10b981' // green
+      case 'aging':
+        return '#f59e0b' // yellow/orange
+      case 'stale':
+        return '#ef4444' // red
+      default:
+        return '#666'
+    }
+  }
+
+  const getFreshnessLabel = (): string => {
+    switch (freshness) {
+      case 'fresh':
+        return 'Live'
+      case 'aging':
+        return 'Recent'
+      case 'stale':
+        return 'Stale'
+      default:
+        return 'Unknown'
+    }
   }
 
   return (
@@ -64,10 +111,30 @@ export const Footer: React.FC<FooterProps> = ({ lastUpdated, loading, nextRefres
         </div>
         <div className="footer-divider"></div>
         <div className="footer-section">
-          <p className="footer-label">Next Refresh</p>
-          <p className="footer-time">
-            {loading ? 'Updating...' : countdown}
-          </p>
+          <p className="footer-label">Data Freshness</p>
+          <div style={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: '8px',
+            fontFamily: "'Geist Mono', monospace",
+            fontWeight: 700,
+            fontSize: '12px'
+          }}>
+            <div style={{
+              width: '10px',
+              height: '10px',
+              borderRadius: '50%',
+              backgroundColor: getFreshnessColor(),
+              boxShadow: `0 0 10px ${getFreshnessColor()}`,
+              transition: 'all 0.3s ease'
+            }}></div>
+            <span style={{ color: getFreshnessColor(), transition: 'color 0.3s ease' }}>
+              {loading ? 'Updating...' : getFreshnessLabel()}
+            </span>
+            <span style={{ color: '#666', marginLeft: '4px' }}>
+              ({countdown})
+            </span>
+          </div>
         </div>
         <div className="footer-divider"></div>
         <div className="footer-section">
