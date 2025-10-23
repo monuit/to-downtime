@@ -1,0 +1,7 @@
+{
+  "root": "./",
+  "buildPath": "./.vercel/output",
+  "devCommand": "vite",
+  "outputDirectory": "dist",
+  "framework": "vite"
+}
