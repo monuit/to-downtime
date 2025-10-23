@@ -110,6 +110,135 @@
   line-height: 1.4;
 }
 
+/* Disruption Markers */
+.disruption-marker {
+  width: 40px;
+  height: 40px;
+  position: relative;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.marker-icon {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 24px;
+  z-index: 2;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+  pointer-events: none;
+}
+
+.marker-pulse {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 68, 68, 0.4) 0%, transparent 70%);
+  animation: pulse 2s ease-out infinite;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.disruption-marker.moderate .marker-pulse {
+  background: radial-gradient(circle, rgba(255, 170, 0, 0.4) 0%, transparent 70%);
+}
+
+.disruption-marker.minor .marker-pulse {
+  background: radial-gradient(circle, rgba(68, 255, 68, 0.4) 0%, transparent 70%);
+}
+
+@keyframes pulse {
+  0% {
+    transform: scale(0.8);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 0.5;
+  }
+  100% {
+    transform: scale(1.4);
+    opacity: 0;
+  }
+}
+
+/* Disruption Popup Styles */
+.disruption-popup {
+  padding: 12px;
+  min-width: 220px;
+  max-width: 300px;
+  font-family: 'Geist Mono', monospace;
+}
+
+.popup-severity {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.popup-severity.severe {
+  background: #ff4444;
+  color: white;
+}
+
+.popup-severity.moderate {
+  background: #ffaa00;
+  color: white;
+}
+
+.popup-severity.minor {
+  background: #44ff44;
+  color: #000;
+}
+
+.disruption-popup h3 {
+  margin: 0 0 8px 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: #1a1a1a;
+  line-height: 1.3;
+}
+
+.disruption-popup p {
+  margin: 0 0 8px 0;
+  font-size: 12px;
+  color: #666;
+  line-height: 1.4;
+}
+
+.popup-lines,
+.popup-station {
+  font-size: 11px;
+  color: #333;
+  margin-bottom: 6px;
+  padding: 4px 0;
+  border-top: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.popup-lines strong,
+.popup-station strong {
+  font-weight: 700;
+  color: #000;
+}
+
+.popup-time {
+  font-size: 11px;
+  color: #999;
+  font-style: italic;
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+}
+
 /* MapLibre popup customization */
 .maplibregl-popup-content {
   padding: 0;
