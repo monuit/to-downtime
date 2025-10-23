@@ -98,12 +98,11 @@ const removeDuplicates = async (dryRun = true): Promise<void> => {
     const archiveQuery = `
       INSERT INTO disruptions_archive (
         external_id, type, severity, title, description, affected_lines,
-        source_api, source_url, raw_data, created_at, resolved_at, archived_at, archived_reason
+        source_api, source_url, raw_data, created_at, updated_at, resolved_at, archived_at
       )
       SELECT 
         external_id, type, severity, title, description, affected_lines,
-        source_api, source_url, raw_data, created_at, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 
-        'Removed as duplicate during cleanup'
+        source_api, source_url, raw_data, created_at, updated_at, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
       FROM disruptions
       WHERE id = ANY($1::uuid[])
     `
