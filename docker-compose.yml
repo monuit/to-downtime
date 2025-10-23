@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  toronto-downtime:
+    build: .
+    ports:
+      - "5173:5173"
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+    volumes:
+      - .:/app
+      - /app/node_modules
+    command: bun run dev --host
