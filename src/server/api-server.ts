@@ -20,7 +20,14 @@ const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
 const app = express()
-const PORT = process.env.PORT || 3000
+const PORT = process.env.PORT || 8080
+
+// Resolve dist path - works correctly whether running from src or dist directory
+const distPath = process.env.NODE_ENV === 'production'
+  ? path.resolve('/app/dist') // Railway production path
+  : path.resolve(path.join(__dirname, '../../dist')) // Local development path
+
+console.log('📁 Using dist path:', distPath)
 
 // Middleware
 app.use(cors())
@@ -98,7 +105,6 @@ app.get('/api/stats', (req, res) => {
 })
 
 // Serve static files from React build (dist/)
-const distPath = path.join(__dirname, '../../dist')
 app.use(express.static(distPath))
 
 // Error handling middleware
