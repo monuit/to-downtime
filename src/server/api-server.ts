@@ -118,6 +118,59 @@ app.get('/api/stats', (req, res) => {
   })
 })
 
+// API: Manually trigger TCL fetch and match
+app.post('/api/tcl/refresh', async (req, res) => {
+  try {
+    console.log('📍 Manual TCL refresh triggered via API')
+    
+    const { fetchAndStoreTCL } = await import('./etl/tcl-fetcher.js')
+    const { batchMatchDisruptions } = await import('./etl/tcl-matcher.js')
+    const { getAllDisruptions } = await import('./db.js')
+    
+    // Fetch and store TCL data
+    const tclResult = await fetchAndStoreTCL()
+    
+    if (!tclResult.success) {
+      return res.status(500).json({
+        success: false,
+        error: 'TCL fetch failed',
+        message: tclResult.error,
+      })
+    }
+    
+    // Match all active disruptions
+    const disruptions = await getAllDisruptions()
+    const matchResult = await batchMatchDisruptions(
+      disruptions.map(d => ({
+        external_id: d.external_id,
+        title: d.title,
+        description: d.description
+      }))
+    )
+    
+    res.json({
+      success: true,
+      tcl: {
+        segmentsStored: tclResult.segmentsStored,
+        fromCache: tclResult.fromCache,
+      },
+      matching: {
+        total: disruptions.length,
+        matched: matchResult.matched,
+        failed: matchResult.failed,
+      },
+      timestamp: new Date().toISOString(),
+    })
+  } catch (error) {
+    console.error('Error during TCL refresh:', error)
+    res.status(500).json({
+      success: false,
+      error: 'TCL refresh failed',
+      message: error instanceof Error ? error.message : String(error),
+    })
+  }
+})
+
 // Serve static files from React build (dist/)
 console.log('📁 Setting up static file serving from:', distPath)
 app.use(express.static(distPath, {
