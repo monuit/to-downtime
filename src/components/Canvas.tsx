@@ -1,6 +1,11 @@
 import { useEffect, useRef } from 'react'
 import * as THREE from 'three'
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
+import gsap from 'gsap'
 import { useDisruptionStore } from '../store/disruptions'
+import { latLonToPlane, TORONTO_LAT, TORONTO_LON, randomPointNearby } from '../utils/mercator'
+import { PingsSystem } from '../utils/pingsSystem'
+import { RippleRingsSystem } from '../utils/ripplesSystem'
 
 export const Canvas: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -12,153 +17,216 @@ export const Canvas: React.FC = () => {
     // Scene setup
     const scene = new THREE.Scene()
     scene.background = new THREE.Color(0x0a0e27)
-    scene.fog = new THREE.Fog(0x0a0e27, 100, 1000)
+    scene.fog = new THREE.Fog(0x0a0e27, 500, 2000)
 
-    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000)
-    camera.position.set(0, 0, 15)
+    const camera = new THREE.PerspectiveCamera(
+      75,
+      window.innerWidth / window.innerHeight,
+      0.1,
+      10000
+    )
+
+    const torontoPosPlane = latLonToPlane(TORONTO_LAT, TORONTO_LON)
+    camera.position.set(torontoPosPlane.x, 150, torontoPosPlane.y + 120)
+    camera.lookAt(torontoPosPlane.x, 0, torontoPosPlane.y)
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true })
     renderer.setSize(window.innerWidth, window.innerHeight)
     renderer.setPixelRatio(window.devicePixelRatio)
+    renderer.shadowMap.enabled = true
     containerRef.current.appendChild(renderer.domElement)
 
-    // Create transit network visualization
-    const createNetworkVisualization = () => {
-      const group = new THREE.Group()
-
-      // Create a grid of nodes representing transit stations
-      const nodes = []
-      for (let x = -8; x <= 8; x += 4) {
-        for (let y = -6; y <= 6; y += 4) {
-          const geometry = new THREE.SphereGeometry(0.2, 32, 32)
-          const material = new THREE.MeshPhongMaterial({ color: 0x00ff88 })
-          const node = new THREE.Mesh(geometry, material)
-          node.position.set(x, y, 0)
-          group.add(node)
-          nodes.push(node)
-        }
-      }
-
-      // Create connections between nodes
-      const lineGeometry = new THREE.BufferGeometry()
-      const points: THREE.Vector3[] = []
-
-      for (let i = 0; i < nodes.length; i++) {
-        for (let j = i + 1; j < nodes.length; j++) {
-          const dist = nodes[i].position.distanceTo(nodes[j].position)
-          if (dist < 6 && dist > 0.1) {
-            points.push(nodes[i].position)
-            points.push(nodes[j].position)
-          }
-        }
-      }
-
-      lineGeometry.setFromPoints(points)
-      const lineMaterial = new THREE.LineBasicMaterial({ color: 0x0088ff, linewidth: 2 })
-      const lines = new THREE.LineSegments(lineGeometry, lineMaterial)
-      group.add(lines)
-
-      return group
-    }
-
-    // Create disruption indicators
-    const createDisruptionIndicators = () => {
-      const group = new THREE.Group()
-
-      disruptions.forEach((disruption, index) => {
-        const angle = (index / disruptions.length) * Math.PI * 2
-        const radius = 5 + Math.sin(angle * 3) * 2
-
-        const x = Math.cos(angle) * radius
-        const y = Math.sin(angle) * radius
-
-        const color =
-          disruption.severity === 'severe'
-            ? 0xff3333
-            : disruption.severity === 'moderate'
-              ? 0xffaa00
-              : 0xffdd00
-
-        const geometry = new THREE.SphereGeometry(0.4, 32, 32)
-        const material = new THREE.MeshPhongMaterial({ color })
-        const mesh = new THREE.Mesh(geometry, material)
-        mesh.position.set(x, y, 2)
-
-        // Add pulsing animation data
-        ;(mesh as any).velocity = Math.random() * 0.02 + 0.01
-
-        group.add(mesh)
-      })
-
-      return group
-    }
-
-    const networkGroup = createNetworkVisualization()
-    scene.add(networkGroup)
-
-    let disruptionGroup = createDisruptionIndicators()
-    scene.add(disruptionGroup)
+    // Orbit controls for pan/zoom
+    const controls = new OrbitControls(camera, renderer.domElement)
+    controls.enableDamping = true
+    controls.dampingFactor = 0.05
+    controls.autoRotate = true
+    controls.autoRotateSpeed = 0.3
+    controls.minDistance = 50
+    controls.maxDistance = 800
+    controls.target.set(torontoPosPlane.x, 0, torontoPosPlane.y)
+    controls.update()
 
     // Lighting
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6)
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.5)
     scene.add(ambientLight)
 
-    const pointLight = new THREE.PointLight(0xffffff, 0.8)
-    pointLight.position.set(10, 10, 10)
-    scene.add(pointLight)
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 1.0)
+    directionalLight.position.set(300, 400, 300)
+    directionalLight.castShadow = true
+    directionalLight.shadow.mapSize.width = 2048
+    directionalLight.shadow.mapSize.height = 2048
+    directionalLight.shadow.camera.left = -500
+    directionalLight.shadow.camera.right = 500
+    directionalLight.shadow.camera.top = 500
+    directionalLight.shadow.camera.bottom = -500
+    scene.add(directionalLight)
+
+    // Mercator map plane
+    const mapGeometry = new THREE.PlaneGeometry(4096, 2048)
+    const mapCanvas = document.createElement('canvas')
+    mapCanvas.width = 1024
+    mapCanvas.height = 512
+    const ctx = mapCanvas.getContext('2d')!
+
+    // Create gradient map texture
+    const gradient = ctx.createLinearGradient(0, 0, 1024, 512)
+    gradient.addColorStop(0, '#1a3a5c')
+    gradient.addColorStop(0.5, '#2d5a8c')
+    gradient.addColorStop(1, '#1a3a5c')
+    ctx.fillStyle = gradient
+    ctx.fillRect(0, 0, 1024, 512)
+
+    // Add some landmass-like patterns
+    ctx.fillStyle = '#0f2540'
+    for (let i = 0; i < 50; i++) {
+      const x = Math.random() * 1024
+      const y = Math.random() * 512
+      const size = Math.random() * 80 + 20
+      ctx.fillRect(x, y, size, size)
+    }
+
+    const mapTexture = new THREE.CanvasTexture(mapCanvas)
+    mapTexture.magFilter = THREE.LinearFilter
+
+    const mapMaterial = new THREE.MeshPhongMaterial({
+      map: mapTexture,
+      emissive: 0x1a4a6c,
+      emissiveIntensity: 0.3,
+    })
+    const mapMesh = new THREE.Mesh(mapGeometry, mapMaterial)
+    mapMesh.receiveShadow = true
+    mapMesh.position.z = -1
+    scene.add(mapMesh)
+
+    // Ripple rings (Toronto-centered anomaly)
+    const ripplesSystem = new RippleRingsSystem()
+    ripplesSystem.getGroup().position.set(torontoPosPlane.x, 0, torontoPosPlane.y)
+    scene.add(ripplesSystem.getGroup())
+
+    // Pings system (disruption indicators)
+    const pingsSystem = new PingsSystem(5000)
+    scene.add(pingsSystem.getMesh())
+
+    // Cinematic opening timeline
+    const openingTL = gsap.timeline()
+    openingTL.to(
+      camera.position,
+      {
+        x: torontoPosPlane.x,
+        y: 120,
+        z: torontoPosPlane.y + 100,
+        duration: 3.5,
+        ease: 'power2.inOut',
+      },
+      0
+    )
+    openingTL.to(
+      ambientLight,
+      {
+        intensity: 0.8,
+        duration: 2,
+        ease: 'power1.inOut',
+      },
+      0.5
+    )
+
+    // Update disruptions as pings on the map
+    const updateDisruptions = () => {
+      const activePings: Array<{
+        position: THREE.Vector3
+        phase: number
+        intensity: number
+      }> = []
+
+      disruptions.forEach((disruption, index) => {
+        // Place disruptions randomly within 200km of Toronto
+        const location = randomPointNearby(TORONTO_LAT, TORONTO_LON, 200)
+        const planePos = latLonToPlane(location.lat, location.lon)
+
+        const severityMap: Record<string, number> = {
+          severe: 1.0,
+          moderate: 0.6,
+          minor: 0.3,
+        }
+
+        activePings.push({
+          position: new THREE.Vector3(planePos.x, 8, planePos.y),
+          phase: Math.random(),
+          intensity: severityMap[disruption.severity] ?? 0.5,
+        })
+
+        // Trigger alert on severe disruptions
+        if (disruption.severity === 'severe' && index === 0) {
+          ripplesSystem.triggerAlert(1.2)
+        }
+      })
+
+      pingsSystem.updatePings(activePings)
+
+      // Calculate and set ripple intensity
+      const avgIntensity =
+        disruptions.reduce((sum, d) => {
+          return (
+            sum +
+            (d.severity === 'severe' ? 1.0 : d.severity === 'moderate' ? 0.6 : 0.3)
+          )
+        }, 0) / Math.max(disruptions.length, 1)
+
+      ripplesSystem.setIntensity(avgIntensity)
+    }
+
+    updateDisruptions()
 
     // Animation loop
     let animationId: number
+    const clock = new THREE.Clock()
+
     const animate = () => {
       animationId = requestAnimationFrame(animate)
+      const delta = clock.getDelta()
 
-      // Rotate network
-      networkGroup.rotation.z += 0.0005
-
-      // Animate disruption indicators
-      disruptionGroup.children.forEach((child: any) => {
-        child.position.z += child.velocity
-        child.rotation.x += 0.02
-        child.rotation.y += 0.02
-
-        if (child.position.z > 4) child.velocity = -Math.abs(child.velocity)
-        if (child.position.z < 0) child.velocity = Math.abs(child.velocity)
-
-        // Pulse effect
-        const pulse = Math.sin(Date.now() * 0.003) * 0.1 + 0.9
-        child.scale.set(pulse, pulse, pulse)
-      })
+      controls.update()
+      pingsSystem.update(delta)
+      ripplesSystem.update(delta)
 
       renderer.render(scene, camera)
     }
+
     animate()
 
-    // Update disruption group when data changes
-    const updateDisruptions = () => {
-      scene.remove(disruptionGroup)
-      disruptionGroup = createDisruptionIndicators()
-      scene.add(disruptionGroup)
-    }
-
+    // Resize handler
     const handleResize = () => {
-      const width = window.innerWidth
-      const height = window.innerHeight
-      camera.aspect = width / height
+      camera.aspect = window.innerWidth / window.innerHeight
       camera.updateProjectionMatrix()
-      renderer.setSize(width, height)
+      renderer.setSize(window.innerWidth, window.innerHeight)
     }
 
     window.addEventListener('resize', handleResize)
-    const updateInterval = setInterval(updateDisruptions, 1000)
+
+    // Update on disruption changes
+    updateDisruptions()
 
     return () => {
-      window.removeEventListener('resize', handleResize)
-      clearInterval(updateInterval)
       cancelAnimationFrame(animationId)
+      window.removeEventListener('resize', handleResize)
+      controls.dispose()
+      pingsSystem.dispose()
+      ripplesSystem.dispose()
       renderer.dispose()
       containerRef.current?.removeChild(renderer.domElement)
     }
   }, [disruptions])
 
-  return <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
+  return (
+    <div
+      ref={containerRef}
+      style={{
+        width: '100%',
+        height: '100%',
+        position: 'relative',
+        overflow: 'hidden',
+      }}
+    />
+  )
 }
