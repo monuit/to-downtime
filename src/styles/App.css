@@ -29,9 +29,11 @@
   margin: 0;
 }
 
-/* Main content area with three-column layout */
+/* Main content area with grid layout */
 .main-content {
-  display: flex;
+  display: grid;
+  grid-template-columns: 280px 300px 1fr 400px;
+  grid-template-rows: 1fr;
   flex: 1;
   overflow: hidden;
   gap: 0;
@@ -39,7 +41,14 @@
 
 /* LEFT - Statistics dashboard */
 .stats-section {
-  width: 280px;
+  overflow-y: auto;
+  background: #0a0a0a;
+  padding: 16px;
+  border-right: 1px solid #222;
+}
+
+/* LEFT-MIDDLE - Filters */
+.filters-section {
   overflow-y: auto;
   background: #0a0a0a;
   padding: 16px;
@@ -48,9 +57,9 @@
 
 /* MIDDLE - Map view */
 .map-view-section {
-  flex: 1;
-  min-width: 0;
   overflow: hidden;
+  padding: 16px;
+  background: #0a0a0a;
 }
 
 /* RIGHT - Disruptions feed */
@@ -62,41 +71,61 @@
 }
 
 /* Responsive */
-@media (max-width: 1200px) {
-  .stats-section {
-    width: 250px;
-  }
-  
-  .disruptions-section {
-    width: 350px;
+@media (max-width: 1400px) {
+  .main-content {
+    grid-template-columns: 250px 280px 1fr 350px;
   }
 }
 
-@media (max-width: 968px) {
+@media (max-width: 1200px) {
   .main-content {
-    flex-direction: column;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: auto auto;
   }
   
   .stats-section {
-    width: 100%;
-    max-height: 30vh;
+    border-right: none;
+    border-bottom: 1px solid #222;
+  }
+  
+  .filters-section {
     border-right: none;
     border-bottom: 1px solid #222;
   }
   
   .map-view-section {
-    width: 100%;
-    max-height: 35vh;
+    grid-column: 1 / -1;
+    border-bottom: 1px solid #222;
   }
   
   .disruptions-section {
-    width: 100%;
-    max-height: 35vh;
+    grid-column: 1 / -1;
     border-left: none;
   }
 }
 
 @media (max-width: 768px) {
+  .main-content {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto auto auto;
+  }
+  
+  .stats-section {
+    max-height: 30vh;
+  }
+  
+  .filters-section {
+    max-height: 40vh;
+  }
+  
+  .map-view-section {
+    max-height: 50vh;
+  }
+  
+  .disruptions-section {
+    max-height: 40vh;
+  }
+  
   .header h1 {
     font-size: 1.2em;
   }
@@ -109,7 +138,8 @@
     padding: 10px;
   }
   
-  .stats-section {
+  .stats-section,
+  .filters-section {
     padding: 15px;
   }
 }

@@ -19,11 +19,36 @@ export interface Disruption {
   direction?: 'eastbound' | 'westbound' | 'northbound' | 'southbound' | 'bidirectional'
   url?: string // Link to more info
   
+  // Geographic and categorization fields
+  coordinates?: {
+    lat: number
+    lng: number
+  }
+  district?: string // Toronto, North York, Scarborough, Etobicoke, etc.
+  roadClass?: string // Local Road, Major Arterial, Minor Arterial, Expressway
+  workType?: string // Toronto Hydro, Watermain, Construction, etc.
+  contractor?: string
+  scheduleType?: '24/7' | 'Weekdays Only' | 'Weekends Included'
+  duration?: string // "< 1 day", "1-7 days", "1-4 weeks", "1-3 months", "3+ months"
+  impactLevel?: 'Low' | 'Medium' | 'High'
+  onsiteHours?: string // e.g., "Mon-Fri 7am-7pm", "24/7", etc.
+  
   // ETL metadata (optional - only populated when from real APIs)
   sourceApi?: string
   sourceUrl?: string
   rawData?: any
   lastFetchedAt?: number
+  
+  // Toronto Centreline (TCL) address data
+  addressFull?: string // e.g., "123-456 Queen St W"
+  addressRange?: string // e.g., "123-456"
+  hasTclMatch?: boolean
+  tclMatches?: Array<{
+    street_name: string
+    address_range: string
+    match_type: 'exact' | 'fuzzy' | 'manual'
+    confidence: number
+  }>
 }
 
 interface DisruptionStore {
