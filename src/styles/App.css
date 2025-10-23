@@ -29,7 +29,7 @@
   margin: 0;
 }
 
-/* Main content area with side-by-side layout */
+/* Main content area with three-column layout */
 .main-content {
   display: flex;
   flex: 1;
@@ -37,7 +37,7 @@
   gap: 0;
 }
 
-/* LEFT side - Statistics dashboard */
+/* LEFT - Statistics dashboard */
 .stats-section {
   width: 280px;
   overflow-y: auto;
@@ -46,17 +46,29 @@
   border-right: 1px solid #222;
 }
 
-/* RIGHT side - Disruptions feed */
-.disruptions-section {
+/* MIDDLE - Map view */
+.map-view-section {
   flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* RIGHT - Disruptions feed */
+.disruptions-section {
+  width: 400px;
   overflow-y: auto;
   background: #0a0a0a;
+  border-left: 1px solid #222;
 }
 
 /* Responsive */
 @media (max-width: 1200px) {
   .stats-section {
     width: 250px;
+  }
+  
+  .disruptions-section {
+    width: 350px;
   }
 }
 
@@ -67,13 +79,20 @@
   
   .stats-section {
     width: 100%;
-    max-height: 40vh;
+    max-height: 30vh;
     border-right: none;
     border-bottom: 1px solid #222;
   }
   
+  .map-view-section {
+    width: 100%;
+    max-height: 35vh;
+  }
+  
   .disruptions-section {
-    max-height: 60vh;
+    width: 100%;
+    max-height: 35vh;
+    border-left: none;
   }
 }
 
