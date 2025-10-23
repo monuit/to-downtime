@@ -1,6 +1,6 @@
-import { useEffect, useRef } from 'react'
+import { useEffect } from 'react'
 import { Canvas } from './components/Canvas'
-import { StatusPanel } from './components/StatusPanel'
+import { Dashboard } from './components/Dashboard'
 import { RefreshTimer } from './components/RefreshTimer'
 import { useDisruptionStore } from './store/disruptions'
 import { useDataFetcher } from './hooks/useDataFetcher'
@@ -26,8 +26,8 @@ function App() {
           <p>Real-time Transit & Road Disruptions</p>
         </div>
         <RefreshTimer lastUpdated={lastUpdated} loading={loading} />
-        <StatusPanel error={error} />
       </div>
+      <Dashboard />
     </div>
   )
 }
