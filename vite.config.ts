@@ -6,6 +6,7 @@ export default defineConfig({
   server: {
     port: 5173,
     strictPort: false,
+    allowedHosts: ['*'], // Allow all hosts for Railway deployment
   },
   build: {
     target: 'ES2020',
