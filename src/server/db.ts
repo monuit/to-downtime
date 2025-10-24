@@ -154,6 +154,23 @@ export const upsertDisruption = async (
     rawData?: any
     coordinates?: { lat: number; lng: number }
     district?: string
+    workType?: string
+    scheduleType?: string
+    duration?: string
+    impactLevel?: string
+    onsiteHours?: string
+    roadClass?: string
+    contractor?: string
+    // Geocoding cache
+    geocodedLat?: number
+    geocodedLon?: number
+    geocodedSource?: string
+    geocodedName?: string
+    // TCL matching cache
+    tclMatchedStreet?: string
+    tclMatchConfidence?: number
+    tclMatchType?: string
+    tclMatchHash?: string
   }
 ): Promise<any> => {
   // Try with coordinates columns first (post-migration)
@@ -162,8 +179,12 @@ export const upsertDisruption = async (
     const query = `
       INSERT INTO disruptions (
         external_id, type, severity, title, description, affected_lines, 
-        source_api, source_url, raw_data, coordinates_lat, coordinates_lng, district, last_fetched_at, is_active
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, CURRENT_TIMESTAMP, TRUE)
+        source_api, source_url, raw_data, coordinates_lat, coordinates_lng, district,
+        work_type, schedule_type, duration, impact_level, onsite_hours, road_class, contractor,
+        geocoded_lat, geocoded_lon, geocoded_source, geocoded_name,
+        tcl_matched_street, tcl_match_confidence, tcl_match_type, tcl_match_hash,
+        last_fetched_at, is_active
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, CURRENT_TIMESTAMP, TRUE)
       ON CONFLICT (external_id) 
       DO UPDATE SET
         type = $2,
@@ -177,6 +198,21 @@ export const upsertDisruption = async (
         coordinates_lat = $10,
         coordinates_lng = $11,
         district = $12,
+        work_type = $13,
+        schedule_type = $14,
+        duration = $15,
+        impact_level = $16,
+        onsite_hours = $17,
+        road_class = $18,
+        contractor = $19,
+        geocoded_lat = COALESCE($20, disruptions.geocoded_lat),
+        geocoded_lon = COALESCE($21, disruptions.geocoded_lon),
+        geocoded_source = COALESCE($22, disruptions.geocoded_source),
+        geocoded_name = COALESCE($23, disruptions.geocoded_name),
+        tcl_matched_street = COALESCE($24, disruptions.tcl_matched_street),
+        tcl_match_confidence = COALESCE($25, disruptions.tcl_match_confidence),
+        tcl_match_type = COALESCE($26, disruptions.tcl_match_type),
+        tcl_match_hash = COALESCE($27, disruptions.tcl_match_hash),
         last_fetched_at = CURRENT_TIMESTAMP,
         is_active = TRUE,
         updated_at = CURRENT_TIMESTAMP
@@ -196,6 +232,21 @@ export const upsertDisruption = async (
       data.coordinates?.lat || null,
       data.coordinates?.lng || null,
       data.district || null,
+      data.workType || null,
+      data.scheduleType || null,
+      data.duration || null,
+      data.impactLevel || null,
+      data.onsiteHours || null,
+      data.roadClass || null,
+      data.contractor || null,
+      data.geocodedLat || null,
+      data.geocodedLon || null,
+      data.geocodedSource || null,
+      data.geocodedName || null,
+      data.tclMatchedStreet || null,
+      data.tclMatchConfidence || null,
+      data.tclMatchType || null,
+      data.tclMatchHash || null,
     ])
 
     return result.rows[0]
@@ -388,6 +439,22 @@ export const getAllDisruptions = async (): Promise<any[]> => {
         d.coordinates_lat,
         d.coordinates_lng,
         d.district,
+        d.work_type,
+        d.schedule_type,
+        d.duration,
+        d.impact_level,
+        d.onsite_hours,
+        d.road_class,
+        d.contractor,
+        d.geocoded_lat,
+        d.geocoded_lon,
+        d.geocoded_source,
+        d.geocoded_name,
+        d.tcl_matched_street,
+        d.tcl_match_confidence,
+        d.tcl_match_type,
+        d.tcl_match_hash,
+        d.tcl_last_matched_at,
         CASE 
           WHEN d.coordinates_lat IS NOT NULL AND d.coordinates_lng IS NOT NULL
           THEN jsonb_build_object('lat', d.coordinates_lat, 'lng', d.coordinates_lng)
