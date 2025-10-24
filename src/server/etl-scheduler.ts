@@ -115,6 +115,13 @@ class ETLScheduler {
             rawData: disruption.rawData,
             coordinates: disruption.coordinates,
             district: disruption.district,
+            workType: disruption.workType,
+            scheduleType: disruption.scheduleType,
+            duration: disruption.duration,
+            impactLevel: disruption.impactLevel,
+            onsiteHours: disruption.onsiteHours,
+            roadClass: disruption.roadClass,
+            contractor: disruption.contractor,
           })
           stored++
           
