@@ -16,8 +16,38 @@ import { geocodeLocation, extractLocationQueries } from './geocoding-service'
 export interface DisruptionCoordinate {
   lat: number
   lon: number
-  source: 'line' | 'description' | 'static' | 'geocoded' | 'fallback' // How we determined the coordinate
+  source: 'line' | 'description' | 'static' | 'geocoded' | 'fallback' | 'database' // How we determined the coordinate
   stationName?: string
+}
+
+const toNumber = (value: unknown): number | null => {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value
+  }
+  if (typeof value === 'string') {
+    const parsed = Number(value)
+    if (Number.isFinite(parsed)) {
+      return parsed
+    }
+  }
+  return null
+}
+
+interface CachedCoordinate {
+  coordinate: DisruptionCoordinate | null
+  freshnessKey?: number
+}
+
+const coordinateCache = new Map<string, CachedCoordinate>()
+const MAX_DYNAMIC_GEOCODE_ATTEMPTS = 40
+let remainingGeocodeAttempts = MAX_DYNAMIC_GEOCODE_ATTEMPTS
+
+const getCacheKey = (disruption: Disruption): string | undefined => {
+  return disruption.id || disruption.title || disruption.description
+}
+
+const getFreshnessKey = (disruption: Disruption): number | undefined => {
+  return disruption.lastFetchedAt ?? disruption.timestamp
 }
 
 /**
@@ -114,18 +144,79 @@ function parseLocationFromDescription(description: string): StationCoordinate | 
  * 4. Use downtown Toronto as fallback
  */
 export async function getDisruptionCoordinates(disruption: Disruption): Promise<DisruptionCoordinate | null> {
+  const cacheKey = getCacheKey(disruption)
+  const freshnessKey = getFreshnessKey(disruption)
+
+  if (cacheKey) {
+    const cached = coordinateCache.get(cacheKey)
+    if (cached) {
+      if (cached.freshnessKey === freshnessKey) {
+        return cached.coordinate
+      }
+      // Data was refreshed, drop the stale entry so we recompute
+      coordinateCache.delete(cacheKey)
+    }
+  }
+
+  const storeCoordinate = (coordinate: DisruptionCoordinate | null): DisruptionCoordinate | null => {
+    if (cacheKey) {
+      coordinateCache.set(cacheKey, { coordinate, freshnessKey })
+    }
+    return coordinate
+  }
+
+  const stationHint = disruption.geocodedName || disruption.addressFull
+
+  // Strategy 0: Use coordinates already provided by the API/database
+  const directCoords = disruption.coordinates
+  if (directCoords) {
+    const lat = toNumber(directCoords.lat)
+    const lon = toNumber((directCoords as any).lon ?? directCoords.lng)
+
+    if (lat !== null && lon !== null) {
+      return storeCoordinate({
+        lat,
+        lon,
+        source: 'database',
+        stationName: stationHint,
+      })
+    }
+  }
+
+  const coordLat = toNumber(disruption.coordinatesLat)
+  const coordLon = toNumber(disruption.coordinatesLng)
+  if (coordLat !== null && coordLon !== null) {
+    return storeCoordinate({
+      lat: coordLat,
+      lon: coordLon,
+      source: 'database',
+      stationName: stationHint,
+    })
+  }
+
+  const geoLat = toNumber(disruption.geocodedLat)
+  const geoLon = toNumber(disruption.geocodedLon)
+  if (geoLat !== null && geoLon !== null) {
+    return storeCoordinate({
+      lat: geoLat,
+      lon: geoLon,
+      source: 'geocoded',
+      stationName: disruption.geocodedName || stationHint,
+    })
+  }
+
   // Strategy 1: Use affectedLines
   if (disruption.affectedLines && disruption.affectedLines.length > 0) {
     const primaryLine = disruption.affectedLines[0]
     const primaryStation = getPrimaryStationForLine(primaryLine)
     
     if (primaryStation) {
-      return {
+      return storeCoordinate({
         lat: primaryStation.lat,
         lon: primaryStation.lon,
         source: 'line',
         stationName: primaryStation.name,
-      }
+      })
     }
   }
   
@@ -135,50 +226,55 @@ export async function getDisruptionCoordinates(disruption: Disruption): Promise<
   )
   
   if (parsedLocation) {
-    return {
+    return storeCoordinate({
       lat: parsedLocation.lat,
       lon: parsedLocation.lon,
       source: 'static',
       stationName: parsedLocation.name,
-    }
+    })
   }
   
   // Strategy 3: Dynamic geocoding
-  const locationQueries = extractLocationQueries(
-    disruption.description || '',
-    disruption.type,
-    disruption.title // Pass title for better extraction
-  )
-  
-  for (const query of locationQueries) {
-    try {
-      const geocoded = await geocodeLocation(query)
-      if (geocoded) {
-        return {
-          lat: geocoded.lat,
-          lon: geocoded.lon,
-          source: 'geocoded',
-          stationName: geocoded.name,
+  if (remainingGeocodeAttempts > 0) {
+    const locationQueries = extractLocationQueries(
+      disruption.description || '',
+      disruption.type,
+      disruption.title // Pass title for better extraction
+    )
+
+    for (const query of locationQueries) {
+      if (remainingGeocodeAttempts <= 0) break
+
+      try {
+        remainingGeocodeAttempts -= 1
+        const geocoded = await geocodeLocation(query)
+        if (geocoded) {
+          return storeCoordinate({
+            lat: geocoded.lat,
+            lon: geocoded.lon,
+            source: 'geocoded',
+            stationName: geocoded.name,
+          })
         }
+      } catch (error) {
+        console.warn(`Geocoding failed for "${query}":`, error)
       }
-    } catch (error) {
-      console.warn(`Geocoding failed for "${query}":`, error)
     }
   }
   
   // Strategy 4: Fallback to downtown Toronto
   // For transit types (subway/streetcar/bus) and road disruptions
   if (['subway', 'streetcar', 'bus', 'road'].includes(disruption.type)) {
-    return {
+    return storeCoordinate({
       lat: DOWNTOWN_TORONTO.lat,
       lon: DOWNTOWN_TORONTO.lon,
       source: 'fallback',
       stationName: 'Downtown Toronto',
-    }
+    })
   }
   
   // No location available
-  return null
+  return storeCoordinate(null)
 }
 
 /**
