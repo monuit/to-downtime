@@ -121,7 +121,7 @@ export const Canvas: React.FC<CanvasProps> = ({ disruptions: propDisruptions, fi
         updatedFilters.impactLevels = [value as 'Low' | 'Medium' | 'High']
         break
       case 'scheduleType':
-        updatedFilters.scheduleTypes = [value as '24/7' | 'Weekdays Only' | 'Weekends Included']
+        updatedFilters.scheduleTypes = value ? [value] : []
         break
       case 'duration':
         updatedFilters.durations = [value]
