@@ -7,6 +7,8 @@ dist/
 .DS_Store
 *.log
 
+.history/
+
 # Temporary analysis scripts and data
 temp/
 temp-*
