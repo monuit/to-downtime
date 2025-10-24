@@ -64,15 +64,32 @@ app.get('/health', (req, res) => {
   })
 })
 
+// Helper: Convert snake_case to camelCase for frontend
+const toCamelCase = (obj: any): any => {
+  if (Array.isArray(obj)) {
+    return obj.map(toCamelCase)
+  } else if (obj !== null && obj.constructor === Object) {
+    return Object.keys(obj).reduce((result, key) => {
+      const camelKey = key.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase())
+      result[camelKey] = toCamelCase(obj[key])
+      return result
+    }, {} as any)
+  }
+  return obj
+}
+
 // API: Get all disruptions from database
 app.get('/api/disruptions', async (req, res) => {
   try {
     const disruptions = await getAllDisruptions()
     
+    // Transform snake_case to camelCase for frontend compatibility
+    const transformedDisruptions = toCamelCase(disruptions)
+    
     res.json({
       success: true,
-      count: disruptions.length,
-      data: disruptions,
+      count: transformedDisruptions.length,
+      data: transformedDisruptions,
       timestamp: new Date().toISOString(),
     })
   } catch (error) {
