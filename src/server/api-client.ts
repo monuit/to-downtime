@@ -46,33 +46,36 @@ export const fetchAllDisruptionData = async (): Promise<Disruption[]> => {
     if (DEBUG) console.log(`✅ Fetched ${result.count} disruptions from database`)
     
     // Map database format to frontend Disruption type
+    // API now returns camelCase field names, so we can use them directly
     return result.data.map((d: any) => ({
-      id: d.external_id,
+      id: d.externalId || d.external_id,
       type: d.type,
       severity: d.severity,
       title: d.title,
       description: d.description,
-      affectedLines: d.affected_lines || [],
-      timestamp: new Date(d.created_at).getTime(),
-      sourceApi: d.source_api,
-      sourceUrl: d.source_url,
-      rawData: d.raw_data,
-      lastFetchedAt: d.last_fetched_at ? new Date(d.last_fetched_at).getTime() : undefined,
+      affectedLines: d.affectedLines || d.affected_lines || [],
+      timestamp: new Date(d.createdAt || d.created_at).getTime(),
+      sourceApi: d.sourceApi || d.source_api,
+      sourceUrl: d.sourceUrl || d.source_url,
+      rawData: d.rawData || d.raw_data,
+      lastFetchedAt: d.lastFetchedAt ? new Date(d.lastFetchedAt).getTime() : (d.last_fetched_at ? new Date(d.last_fetched_at).getTime() : undefined),
       
-      // Geographic and TCL data (from migration 004 & 005)
+      // Geographic and TCL data (camelCase from API)
       coordinates: d.coordinates || undefined,
       district: d.district || undefined,
-      addressFull: d.address_full || undefined,
-      addressRange: d.address_range || undefined,
-      hasTclMatch: d.has_tcl_match || false,
-      tclMatches: d.tcl_matches || [],
+      addressFull: d.addressFull || d.address_full || undefined,
+      addressRange: d.addressRange || d.address_range || undefined,
+      hasTclMatch: d.hasTclMatch || d.has_tcl_match || false,
+      tclMatches: d.tclMatches || d.tcl_matches || [],
       
-      // Work categorization fields (from raw_data)
-      workType: d.raw_data?.workEventType || d.raw_data?.subType || undefined,
-      scheduleType: d.raw_data?.workPeriod || undefined,
-      impactLevel: d.raw_data?.maxImpact || d.raw_data?.currImpact || undefined,
-      roadClass: d.raw_data?.roadClass || undefined,
-      contractor: d.raw_data?.contractor || undefined,
+      // Work categorization fields (now from database columns, not rawData)
+      workType: d.workType || d.work_type || undefined,
+      scheduleType: d.scheduleType || d.schedule_type || undefined,
+      duration: d.duration || undefined,
+      impactLevel: d.impactLevel || d.impact_level || undefined,
+      onsiteHours: d.onsiteHours || d.onsite_hours || undefined,
+      roadClass: d.roadClass || d.road_class || undefined,
+      contractor: d.contractor || undefined,
     }))
 
   } catch (error) {
