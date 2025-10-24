@@ -108,10 +108,31 @@ vercel
 
 ### Environment Variables
 
-No environment variables required for basic functionality. The app uses public Toronto Open Data APIs.
+Create a `.env` file in the root directory to configure logging:
 
-For production, you may want to add:
-- `NEXT_PUBLIC_API_URL`: Custom API endpoint
+```bash
+# Backend Logging Level
+# Options: quiet (default, only errors), normal (essential info), verbose (all details), debug (full debugging)
+LOG_LEVEL=quiet
+
+# Frontend Debug Mode
+# Set to 'true' to enable console logging
+VITE_DEBUG=false
+
+# Database (required for production)
+DATABASE_URL=postgresql://user:password@host:port/database
+```
+
+**Logging Levels:**
+- `quiet` (default): Only errors - minimal console output
+- `normal`: Essential info (ETL summaries, server startup)
+- `verbose`: All ETL details (data counts, matching progress)
+- `debug`: Full debugging info (individual records, cache hits)
+
+**Debug Mode:**
+- Set `VITE_DEBUG=true` to see frontend console logs
+- Set `LOG_LEVEL=verbose` or `LOG_LEVEL=debug` for backend details
+- Default is quiet mode to reduce console noise
 
 ## How It Works
 

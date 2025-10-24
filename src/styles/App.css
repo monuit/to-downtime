@@ -15,6 +15,9 @@
   border-bottom: 1px solid #222;
   backdrop-filter: blur(10px);
   z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .header h1 {
@@ -27,6 +30,48 @@
   font-size: 0.75em;
   color: #666;
   margin: 0;
+}
+
+/* View Mode Tabs */
+.view-mode-tabs {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  padding: 0;
+}
+
+.tab-button {
+  padding: 8px 20px;
+  background: rgba(255, 255, 255, 0.05);
+  color: #a0aec0;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  transition: all 0.3s ease;
+  backdrop-filter: blur(10px);
+}
+
+.tab-button:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(99, 102, 241, 0.5);
+  color: #e2e8f0;
+}
+
+.tab-button.active {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-color: #667eea;
+  color: #fff;
+  box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);
+}
+
+/* Analytics View */
+.analytics-view {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 /* Main content area with grid layout */

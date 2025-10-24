@@ -13,6 +13,7 @@ type FreshnessLevel = 'fresh' | 'aging' | 'stale'
 export const Footer: React.FC<FooterProps> = ({ lastUpdated, loading, nextRefreshTime }) => {
   const [countdown, setCountdown] = useState<string>('')
   const [freshness, setFreshness] = useState<FreshnessLevel>('fresh')
+  const [showAbout, setShowAbout] = useState(false)
 
   useEffect(() => {
     if (!lastUpdated) {
@@ -102,10 +103,19 @@ export const Footer: React.FC<FooterProps> = ({ lastUpdated, loading, nextRefres
   }
 
   return (
-    <footer className="app-footer">
-      <div className="footer-content">
-        <div style={{ flex: 1 }}></div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+    <>
+      <footer className="app-footer">
+        <div className="footer-content">
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center' }}>
+            <button 
+              className="footer-icon-button"
+              onClick={() => setShowAbout(true)}
+              title="About this project"
+            >
+              ?
+            </button>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
           <div className="footer-section">
             <p className="footer-label">Last Updated</p>
             <p className="footer-time">
@@ -154,5 +164,42 @@ export const Footer: React.FC<FooterProps> = ({ lastUpdated, loading, nextRefres
         </div>
       </div>
     </footer>
+
+    {/* About Modal */}
+    {showAbout && (
+      <div className="about-modal-overlay" onClick={() => setShowAbout(false)}>
+        <div className="about-modal" onClick={(e) => e.stopPropagation()}>
+          <button className="about-close" onClick={() => setShowAbout(false)}>✕</button>
+          <h2>About This Project</h2>
+          <div className="about-content">
+            <p>
+              You might be curious why I created this, well, same to be honest. I just like to explore and create things, 
+              and I've decided this time to actually explore the city's road work because it doesn't seem like anyone can 
+              actually move anywhere in the city (surprising, huh?)
+            </p>
+            <p>
+              Anyway, if you'd like to support me and my projects, buy me a coffee:
+            </p>
+            <div style={{ textAlign: 'center', margin: '20px 0' }}>
+              <a href='https://ko-fi.com/Z8Z51MBSO5' target='_blank' rel="noopener noreferrer">
+                <img 
+                  height='36' 
+                  style={{ border: 0, height: '36px' }} 
+                  src='https://storage.ko-fi.com/cdn/kofi6.png?v=6' 
+                  alt='Buy Me a Coffee at ko-fi.com' 
+                />
+              </a>
+            </div>
+            <p>
+              Thanks! Feel free to explore all my other projects at{' '}
+              <a href="https://www.monuit.dev/" target="_blank" rel="noopener noreferrer">
+                monuit.dev
+              </a>
+            </p>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   )
 }

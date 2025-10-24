@@ -85,6 +85,165 @@ app.get('/api/disruptions', async (req, res) => {
   }
 })
 
+// API: Get historical disruptions from archive
+app.get('/api/disruptions/archive', async (req, res) => {
+  try {
+    const { startDate, endDate, limit = 1000, type, severity } = req.query
+    
+    let query = `
+      SELECT 
+        id,
+        external_id,
+        type,
+        severity,
+        title,
+        description,
+        affected_lines,
+        source_api,
+        source_url,
+        created_at,
+        updated_at,
+        resolved_at,
+        archived_at,
+        duration_minutes
+      FROM disruptions_archive
+      WHERE 1=1
+    `
+    
+    const params: any[] = []
+    let paramCount = 1
+    
+    // Date range filtering
+    if (startDate) {
+      query += ` AND archived_at >= $${paramCount}`
+      params.push(new Date(Number(startDate)))
+      paramCount++
+    }
+    
+    if (endDate) {
+      query += ` AND archived_at <= $${paramCount}`
+      params.push(new Date(Number(endDate)))
+      paramCount++
+    }
+    
+    // Type filtering
+    if (type) {
+      query += ` AND type = $${paramCount}`
+      params.push(type)
+      paramCount++
+    }
+    
+    // Severity filtering
+    if (severity) {
+      query += ` AND severity = $${paramCount}`
+      params.push(severity)
+      paramCount++
+    }
+    
+    query += ` ORDER BY archived_at DESC LIMIT $${paramCount}`
+    params.push(Number(limit))
+    
+    const result = await import('./db.js').then(module => module.pool.query(query, params))
+    
+    const disruptions = result.rows.map((row: any) => ({
+      id: row.id,
+      type: row.type,
+      severity: row.severity,
+      title: row.title,
+      description: row.description,
+      affectedLines: row.affected_lines,
+      timestamp: new Date(row.archived_at).getTime(),
+      sourceApi: row.source_api,
+      sourceUrl: row.source_url,
+      createdAt: row.created_at ? new Date(row.created_at).getTime() : undefined,
+      resolvedAt: row.resolved_at ? new Date(row.resolved_at).getTime() : undefined,
+      durationMinutes: row.duration_minutes,
+    }))
+    
+    res.json({
+      success: true,
+      count: disruptions.length,
+      data: disruptions,
+      filters: {
+        startDate: startDate ? new Date(Number(startDate)).toISOString() : undefined,
+        endDate: endDate ? new Date(Number(endDate)).toISOString() : undefined,
+        type,
+        severity,
+        limit,
+      },
+      timestamp: new Date().toISOString(),
+    })
+  } catch (error) {
+    console.error('Error fetching archived disruptions:', error)
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch archived disruptions',
+      message: error instanceof Error ? error.message : String(error),
+    })
+  }
+})
+
+// API: Get aggregated analytics data
+app.get('/api/analytics/aggregate', async (req, res) => {
+  try {
+    const { field, groupBy, startDate, endDate, includeArchive = 'false' } = req.query
+    
+    if (!field || !groupBy) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required parameters: field and groupBy',
+      })
+    }
+    
+    let query = `
+      SELECT 
+        ${groupBy} as label,
+        COUNT(*) as count
+      FROM disruptions
+      WHERE is_active = true
+    `
+    
+    const params: any[] = []
+    let paramCount = 1
+    
+    if (startDate) {
+      query += ` AND created_at >= $${paramCount}`
+      params.push(new Date(Number(startDate)))
+      paramCount++
+    }
+    
+    if (endDate) {
+      query += ` AND created_at <= $${paramCount}`
+      params.push(new Date(Number(endDate)))
+      paramCount++
+    }
+    
+    query += ` GROUP BY ${groupBy} ORDER BY count DESC`
+    
+    const result = await import('./db.js').then(module => module.pool.query(query, params))
+    
+    const data = result.rows.map((row: any) => ({
+      label: row.label || 'Unknown',
+      count: Number(row.count),
+    }))
+    
+    res.json({
+      success: true,
+      field,
+      groupBy,
+      data,
+      timestamp: new Date().toISOString(),
+    })
+  } catch (error) {
+    console.error('Error fetching analytics:', error)
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch analytics',
+      message: error instanceof Error ? error.message : String(error),
+    })
+  }
+})
+
 // API: Trigger manual ETL sync
 app.post('/api/sync', async (req, res) => {
   try {

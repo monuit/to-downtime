@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo } from 'react'
+import { Routes, Route, Link, useLocation } from 'react-router-dom'
 import { Canvas } from './components/Canvas'
 import { Dashboard } from './components/Dashboard'
 import { RefreshTimer } from './components/RefreshTimer'
@@ -6,17 +7,20 @@ import { Footer } from './components/Footer'
 import { MapView } from './components/MapView'
 import { FilterPanel, type FilterOptions } from './components/FilterPanel'
 import { DisruptionDetailsModal } from './components/DisruptionDetailsModal'
+import { ChartBuilder } from './components/ChartBuilder'
 import { useDisruptionStore, type Disruption } from './store/disruptions'
 import { useDataFetcher } from './hooks/useDataFetcher'
 import './styles/App.css'
 import './components/RefreshTimer.css'
 import './components/Footer.css'
 
+const DEBUG = import.meta.env.VITE_DEBUG === 'true'
+
 function App() {
+  const location = useLocation()
   const { data, loading, error, lastUpdated, nextRefreshTime } = useDataFetcher()
   const setDisruptions = useDisruptionStore((state) => state.setDisruptions)
   const disruptions = useDisruptionStore((state) => state.disruptions)
-  
   const [selectedDistrict, setSelectedDistrict] = useState<string | undefined>(undefined)
   const [selectedDisruption, setSelectedDisruption] = useState<Disruption | null>(null)
   const [isUserInteracting, setIsUserInteracting] = useState(false)
@@ -74,17 +78,19 @@ function App() {
   // Smart data updates - only update when user is not actively interacting
   useEffect(() => {
     if (data) {
-      console.log(`📊 App received ${data.length} disruptions from API`)
-      const withCoords = data.filter(d => d.coordinates)
-      const withoutCoords = data.length - withCoords.length
-      console.log(`   - ${withCoords.length} have coordinates from DB`)
-      console.log(`   - ${withoutCoords} need geocoding`)
+      if (DEBUG) {
+        console.log(`📊 App received ${data.length} disruptions from API`)
+        const withCoords = data.filter(d => d.coordinates)
+        const withoutCoords = data.length - withCoords.length
+        console.log(`   - ${withCoords.length} have coordinates from DB`)
+        console.log(`   - ${withoutCoords} need geocoding`)
+      }
       
       // If user is interacting, delay the update
       if (isUserInteracting) {
-        console.log('⏸️ User is interacting, deferring data update...')
+        if (DEBUG) console.log('⏸️ User is interacting, deferring data update...')
         const deferTimeout = setTimeout(() => {
-          console.log('▶️ Applying deferred data update')
+          if (DEBUG) console.log('▶️ Applying deferred data update')
           setDisruptions(data)
         }, 3000)
         
@@ -147,7 +153,7 @@ function App() {
       )
     }
 
-    console.log(`🔍 Filters applied: ${disruptions.length} → ${filtered.length} disruptions`)
+    if (DEBUG) console.log(`🔍 Filters applied: ${disruptions.length} → ${filtered.length} disruptions`)
     return filtered
   }, [disruptions, filters.workTypes, filters.scheduleTypes, filters.durations, filters.impactLevels, debouncedSearchText])
 
@@ -156,50 +162,78 @@ function App() {
       <div className="header">
         <h1>🚇 Toronto Downtime</h1>
         <p>Real-time Transit & Road Disruptions</p>
+        
+        {/* Navigation Tabs */}
+        <div className="view-mode-tabs">
+          <Link 
+            to="/"
+            className={`tab-button ${location.pathname === '/' ? 'active' : ''}`}
+          >
+            🗺️ Live View
+          </Link>
+          <Link 
+            to="/analytics"
+            className={`tab-button ${location.pathname === '/analytics' ? 'active' : ''}`}
+          >
+            📊 Analytics & Charts
+          </Link>
+        </div>
       </div>
       
-      <div className="main-content">
-        <div className="stats-section">
-          <Dashboard disruptions={filteredDisruptions} />
-        </div>
+      <Routes>
+        <Route path="/" element={
+          <>
+          <div className="main-content">
+            <div className="stats-section">
+              <Dashboard disruptions={filteredDisruptions} />
+            </div>
 
-        <div className="filters-section">
-          <FilterPanel 
-            filters={filters}
-            onFiltersChange={setFilters}
-            availableWorkTypes={availableWorkTypes}
-            disruptions={disruptions}
-            filteredCount={filteredDisruptions.length}
-            totalCount={disruptions.length}
-            isFiltering={isFiltering}
+            <div className="filters-section">
+              <FilterPanel 
+                filters={filters}
+                onFiltersChange={setFilters}
+                availableWorkTypes={availableWorkTypes}
+                disruptions={disruptions}
+                filteredCount={filteredDisruptions.length}
+                totalCount={disruptions.length}
+                isFiltering={isFiltering}
+              />
+            </div>
+            
+            <div className="map-view-section">
+              <MapView 
+                disruptions={filteredDisruptions}
+                selectedDistrict={selectedDistrict}
+                onDistrictSelect={setSelectedDistrict}
+                onDisruptionSelect={setSelectedDisruption}
+              />
+            </div>
+            
+            <div className="disruptions-section">
+              <Canvas 
+                disruptions={filteredDisruptions}
+                filters={filters}
+                onFiltersChange={setFilters}
+              />
+            </div>
+          </div>
+          
+          {/* Disruption details modal */}
+          <DisruptionDetailsModal 
+            disruption={selectedDisruption}
+            onClose={() => setSelectedDisruption(null)}
           />
-        </div>
+          
+          <Footer lastUpdated={lastUpdated} loading={loading} nextRefreshTime={nextRefreshTime} />
+        </>
+        } />
         
-        <div className="map-view-section">
-          <MapView 
-            disruptions={filteredDisruptions}
-            selectedDistrict={selectedDistrict}
-            onDistrictSelect={setSelectedDistrict}
-            onDisruptionSelect={setSelectedDisruption}
-          />
-        </div>
-        
-        <div className="disruptions-section">
-          <Canvas 
-            disruptions={filteredDisruptions}
-            filters={filters}
-            onFiltersChange={setFilters}
-          />
-        </div>
-      </div>
-      
-      {/* Disruption details modal */}
-      <DisruptionDetailsModal 
-        disruption={selectedDisruption}
-        onClose={() => setSelectedDisruption(null)}
-      />
-      
-      <Footer lastUpdated={lastUpdated} loading={loading} nextRefreshTime={nextRefreshTime} />
+        <Route path="/analytics" element={
+          <div className="analytics-view">
+            <ChartBuilder />
+          </div>
+        } />
+      </Routes>
     </div>
   )
 }

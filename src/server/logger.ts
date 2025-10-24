@@ -8,14 +8,17 @@ import dotenv from 'dotenv'
 dotenv.config({ override: false })
 
 const LOG_LEVELS = {
-  QUIET: 0,    // Only critical errors and startup/shutdown
-  NORMAL: 1,   // Essential info (default)
+  QUIET: 0,    // Only critical errors
+  NORMAL: 1,   // Essential info
   VERBOSE: 2,  // All details (ETL progress, data counts, etc.)
+  DEBUG: 3,    // Full debugging info
 }
 
-// Read from environment, default to QUIET for local dev
+// Read from environment, default to QUIET
 const envLogLevel = process.env.LOG_LEVEL?.toLowerCase()
-const logLevel = envLogLevel === 'verbose' 
+const logLevel = envLogLevel === 'debug'
+  ? LOG_LEVELS.DEBUG
+  : envLogLevel === 'verbose' 
   ? LOG_LEVELS.VERBOSE 
   : envLogLevel === 'normal'
   ? LOG_LEVELS.NORMAL
