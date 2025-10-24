@@ -4,7 +4,7 @@ import type { Disruption } from '../store/disruptions';
 
 export interface FilterOptions {
   workTypes: string[];
-  scheduleTypes: ('24/7' | 'Weekdays Only' | 'Weekends Included')[];
+  scheduleTypes: string[];
   durations: string[];
   impactLevels: ('Low' | 'Medium' | 'High')[];
   searchText: string;
@@ -26,12 +26,6 @@ const DURATION_OPTIONS = [
   '1-4 weeks',
   '1-3 months',
   '3+ months',
-];
-
-const SCHEDULE_OPTIONS: ('24/7' | 'Weekdays Only' | 'Weekends Included')[] = [
-  '24/7',
-  'Weekdays Only',
-  'Weekends Included',
 ];
 
 const IMPACT_OPTIONS: ('Low' | 'Medium' | 'High')[] = [
@@ -136,7 +130,34 @@ export function FilterPanel({ filters, onFiltersChange, availableWorkTypes, disr
     onFiltersChange({ ...filters, workTypes: newWorkTypes });
   };
 
-  const toggleScheduleType = (schedule: typeof SCHEDULE_OPTIONS[number]) => {
+  const scheduleOptions = useMemo(() => {
+    const options = new Set<string>();
+    disruptions.forEach(d => {
+      if (d.scheduleType) {
+        options.add(d.scheduleType);
+      }
+    });
+
+    // Provide fallback options if the dataset has not hydrated yet
+    if (options.size === 0) {
+      ['Continuous', 'Daily', 'Weekdays', 'Weekends', 'Monday To Saturday'].forEach(value => options.add(value));
+    }
+
+    const priority = ['Continuous', 'Daily', 'Weekdays', 'Weekdays Only', 'Monday To Saturday', 'Weekends', 'Weekends Included'];
+
+    return Array.from(options).sort((a, b) => {
+      const indexA = priority.indexOf(a);
+      const indexB = priority.indexOf(b);
+      if (indexA !== -1 || indexB !== -1) {
+        if (indexA === -1) return 1;
+        if (indexB === -1) return -1;
+        return indexA - indexB;
+      }
+      return a.localeCompare(b);
+    });
+  }, [disruptions]);
+
+  const toggleScheduleType = (schedule: string) => {
     const newSchedules = filters.scheduleTypes.includes(schedule)
       ? filters.scheduleTypes.filter(s => s !== schedule)
       : [...filters.scheduleTypes, schedule];
@@ -328,11 +349,11 @@ export function FilterPanel({ filters, onFiltersChange, availableWorkTypes, disr
             <label className="filter-label">
               ⏰ Schedule
               {filters.scheduleTypes.length > 0 && (
-                <span className="filter-count">({filters.scheduleTypes.length} of {SCHEDULE_OPTIONS.length})</span>
+                <span className="filter-count">({filters.scheduleTypes.length} of {scheduleOptions.length})</span>
               )}
             </label>
             <div className="filter-options">
-              {SCHEDULE_OPTIONS.map(schedule => (
+              {scheduleOptions.map(schedule => (
                 <label key={schedule} className="checkbox-label">
                   <input
                     type="checkbox"
