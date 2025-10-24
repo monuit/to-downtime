@@ -24,6 +24,12 @@ export interface Disruption {
     lat: number
     lng: number
   }
+  coordinatesLat?: number
+  coordinatesLng?: number
+  geocodedLat?: number
+  geocodedLon?: number
+  geocodedName?: string
+  geocodedSource?: string
   district?: string // Toronto, North York, Scarborough, Etobicoke, etc.
   roadClass?: string // Local Road, Major Arterial, Minor Arterial, Expressway
   workType?: string // Toronto Hydro, Watermain, Construction, etc.
