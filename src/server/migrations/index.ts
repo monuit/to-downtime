@@ -11,6 +11,9 @@ import * as migration002 from './002_add_performance_indexes.js'
 import * as migration003 from './003_add_tcl_tables.js'
 import * as migration004 from './004_add_coordinates_geometry.js'
 import * as migration005 from './005_add_geohash_indexing.js'
+import * as migration006 from './006_add_enhanced_fields.js'
+import * as migration007 from './007_add_geocoding_cache.js'
+import * as migration008 from './008_add_tcl_matching_cache.js'
 import { logger } from '../logger.js'
 
 interface Migration {
@@ -50,6 +53,24 @@ const migrations: Migration[] = [
     name: 'add_geohash_indexing',
     up: migration005.up,
     down: migration005.down,
+  },
+  {
+    id: '006',
+    name: 'add_enhanced_fields',
+    up: migration006.up,
+    down: migration006.down,
+  },
+  {
+    id: '007',
+    name: 'add_geocoding_cache',
+    up: migration007.up,
+    down: migration007.down,
+  },
+  {
+    id: '008',
+    name: 'add_tcl_matching_cache',
+    up: migration008.up,
+    down: migration008.down,
   },
 ]
 
