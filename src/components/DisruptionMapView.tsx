@@ -117,6 +117,7 @@ export const DisruptionMapView: React.FC = () => {
         static: 'Known Location',
         geocoded: 'Geocoded',
         fallback: 'Approximate',
+        database: 'Database Location',
       }
       const sourceLabel = sourceLabels[coordinates.source] || ''
 
