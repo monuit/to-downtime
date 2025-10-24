@@ -13,6 +13,7 @@ import {
   normalizeStreetName,
   type StreetMatch 
 } from '../utils/street-name-utils.js'
+import { computeMatchHash, canUseCachedMatch } from '../utils/tcl-cache-utils.js'
 import { logger } from '../logger.js'
 
 export interface DisruptionTCLMatch {
@@ -28,6 +29,8 @@ export interface DisruptionTCLMatch {
 /**
  * Match a single disruption to TCL segments
  * Returns all matching segments and address information
+ * 
+ * OPTIMIZATION: Checks database cache first to avoid expensive fuzzy matching
  */
 export async function matchDisruptionToTCL(
   disruptionExternalId: string,
@@ -35,12 +38,45 @@ export async function matchDisruptionToTCL(
   description: string = ''
 ): Promise<DisruptionTCLMatch[]> {
   try {
+    // STEP 1: Check if we have a valid cached match
+    const cachedMatch = await getCachedMatch(disruptionExternalId)
+    
+    if (cachedMatch && canUseCachedMatch(cachedMatch, { title, description })) {
+      logger.debug(`   💾 Using cached match for: "${title}"`)
+      
+      // Return cached match - fetch segments for cached street
+      if (cachedMatch.tcl_matched_street) {
+        const segments = await getTCLSegmentsByStreet(cachedMatch.tcl_matched_street)
+        
+        if (segments.length > 0) {
+          const addressFull = buildAddressString(cachedMatch.tcl_matched_street, segments)
+          const addressRange = buildAddressRange(segments)
+          
+          return [{
+            disruptionExternalId,
+            streetName: cachedMatch.tcl_matched_street,
+            matchType: (cachedMatch.tcl_match_type as 'exact' | 'fuzzy' | 'none') || 'fuzzy',
+            confidence: cachedMatch.tcl_match_confidence || 0,
+            tclSegments: segments,
+            addressFull,
+            addressRange
+          }]
+        }
+      }
+    }
+    
+    // STEP 2: No valid cache - perform fuzzy matching
+    logger.debug(`   🔍 Performing fuzzy match for: "${title}"`)
+    
     // Extract street names from disruption text
     const text = `${title} ${description}`
     const streetNames = extractStreetNames(text)
 
     if (streetNames.length === 0) {
       logger.debug(`   No streets found in: "${title}"`)
+      
+      // Cache the "no match" result to avoid re-processing
+      await updateMatchCache(disruptionExternalId, title, description, null)
       return []
     }
 
@@ -75,10 +111,29 @@ export async function matchDisruptionToTCL(
           })
 
           logger.debug(`   ✅ ${match.matchType.toUpperCase()} MATCH: "${streetName}" → "${match.matchedName}" (${segments.length} segments, confidence: ${match.confidence.toFixed(2)})`)
+          
+          // STEP 3: Cache the successful match (use first/best match)
+          if (matches.length === 1) {
+            await updateMatchCache(
+              disruptionExternalId, 
+              title, 
+              description,
+              {
+                streetName: match.matchedName,
+                matchType: match.matchType,
+                confidence: match.confidence
+              }
+            )
+          }
         }
       } else {
         logger.debug(`   ❌ No match for: "${streetName}"`)
       }
+    }
+    
+    // If no matches found, cache the "no match" result
+    if (matches.length === 0) {
+      await updateMatchCache(disruptionExternalId, title, description, null)
     }
 
     return matches
@@ -209,6 +264,77 @@ function buildAddressRange(segments: any[]): string {
   }
 
   return `${min}-${max}`
+}
+
+/**
+ * Get cached match from database
+ */
+async function getCachedMatch(disruptionExternalId: string): Promise<{
+  tcl_matched_street?: string | null
+  tcl_match_confidence?: number | null
+  tcl_match_type?: string | null
+  tcl_match_hash?: string | null
+  tcl_last_matched_at?: Date | null
+} | null> {
+  try {
+    const result = await pool.query(
+      `SELECT 
+        tcl_matched_street, 
+        tcl_match_confidence, 
+        tcl_match_type, 
+        tcl_match_hash,
+        tcl_last_matched_at
+      FROM disruptions 
+      WHERE external_id = $1`,
+      [disruptionExternalId]
+    )
+    
+    return result.rows[0] || null
+  } catch (error) {
+    logger.error(`Error fetching cached match for ${disruptionExternalId}:`, error)
+    return null
+  }
+}
+
+/**
+ * Update match cache in database
+ */
+async function updateMatchCache(
+  disruptionExternalId: string,
+  title: string,
+  description: string,
+  matchResult: {
+    streetName: string
+    matchType: 'exact' | 'fuzzy' | 'none'
+    confidence: number
+  } | null
+): Promise<void> {
+  try {
+    const matchHash = computeMatchHash(title, description)
+    
+    await pool.query(
+      `UPDATE disruptions 
+      SET 
+        tcl_matched_street = $1,
+        tcl_match_confidence = $2,
+        tcl_match_type = $3,
+        tcl_match_hash = $4,
+        tcl_last_matched_at = CURRENT_TIMESTAMP
+      WHERE external_id = $5`,
+      [
+        matchResult?.streetName || null,
+        matchResult?.confidence || null,
+        matchResult?.matchType || 'none',
+        matchHash,
+        disruptionExternalId
+      ]
+    )
+    
+    logger.debug(`   💾 Cached match result for: ${disruptionExternalId}`)
+  } catch (error) {
+    // Log but don't fail - caching is optional optimization
+    logger.error(`Error updating match cache for ${disruptionExternalId}:`, error)
+  }
 }
 
 /**
