@@ -12,6 +12,34 @@ interface GeocodingCache {
 // In-memory cache to avoid repeated API calls
 const geocodingCache: GeocodingCache = {}
 
+// Request queue for rate limiting
+const requestQueue: Array<() => Promise<void>> = []
+let isProcessingQueue = false
+const RATE_LIMIT_DELAY = 1000 // 1 second between requests to respect Nominatim's usage policy
+const MAX_CONCURRENT_REQUESTS = 1 // Process one request at a time
+
+/**
+ * Process the geocoding request queue with rate limiting
+ */
+async function processQueue() {
+  if (isProcessingQueue || requestQueue.length === 0) return
+  
+  isProcessingQueue = true
+  
+  while (requestQueue.length > 0) {
+    const request = requestQueue.shift()
+    if (request) {
+      await request()
+      // Wait before processing next request
+      if (requestQueue.length > 0) {
+        await new Promise(resolve => setTimeout(resolve, RATE_LIMIT_DELAY))
+      }
+    }
+  }
+  
+  isProcessingQueue = false
+}
+
 /**
  * Geocode a location string to coordinates using OpenStreetMap Nominatim
  * @param locationString - The location to geocode (e.g., "Bloor Station, Toronto" or "Simcoe and Bay, Toronto")
@@ -24,54 +52,65 @@ export async function geocodeLocation(locationString: string): Promise<StationCo
     return geocodingCache[cacheKey]
   }
 
-  try {
-    // Add "Toronto, Ontario, Canada" to improve accuracy
-    const searchQuery = locationString.includes('Toronto') 
-      ? locationString 
-      : `${locationString}, Toronto, Ontario, Canada`
+  // Return a promise that will be resolved when the request is processed
+  return new Promise((resolve) => {
+    const processRequest = async () => {
+      try {
+        // Add "Toronto, Ontario, Canada" to improve accuracy
+        const searchQuery = locationString.includes('Toronto') 
+          ? locationString 
+          : `${locationString}, Toronto, Ontario, Canada`
 
-    const url = `https://nominatim.openstreetmap.org/search?` + new URLSearchParams({
-      q: searchQuery,
-      format: 'json',
-      limit: '1',
-      countrycodes: 'ca', // Canada only
-    })
+        const url = `https://nominatim.openstreetmap.org/search?` + new URLSearchParams({
+          q: searchQuery,
+          format: 'json',
+          limit: '1',
+          countrycodes: 'ca', // Canada only
+        })
 
-    const response = await fetch(url, {
-      headers: {
-        'User-Agent': 'TorontoDowntime/1.0', // Nominatim requires User-Agent
-      },
-    })
+        const response = await fetch(url, {
+          headers: {
+            'User-Agent': 'TorontoDowntime/1.0', // Nominatim requires User-Agent
+          },
+        })
 
-    if (!response.ok) {
-      geocodingCache[cacheKey] = null
-      return null
+        if (!response.ok) {
+          geocodingCache[cacheKey] = null
+          resolve(null)
+          return
+        }
+
+        const results = await response.json()
+        
+        if (results.length === 0) {
+          geocodingCache[cacheKey] = null
+          resolve(null)
+          return
+        }
+
+        const result = results[0]
+        const coordinates: StationCoordinate = {
+          name: result.display_name.split(',')[0], // First part is usually the specific location
+          lat: parseFloat(result.lat),
+          lon: parseFloat(result.lon),
+        }
+
+        // Cache the result
+        geocodingCache[cacheKey] = coordinates
+        console.log(`✅ Geocoded: "${locationString}" → ${coordinates.lat}, ${coordinates.lon}`)
+        
+        resolve(coordinates)
+      } catch (error) {
+        console.error(`Failed to geocode "${locationString}":`, error)
+        geocodingCache[cacheKey] = null
+        resolve(null)
+      }
     }
-
-    const results = await response.json()
     
-    if (results.length === 0) {
-      geocodingCache[cacheKey] = null
-      return null
-    }
-
-    const result = results[0]
-    const coordinates: StationCoordinate = {
-      name: result.display_name.split(',')[0], // First part is usually the specific location
-      lat: parseFloat(result.lat),
-      lon: parseFloat(result.lon),
-    }
-
-    // Cache the result
-    geocodingCache[cacheKey] = coordinates
-    console.log(`✅ Geocoded: "${locationString}" → ${coordinates.lat}, ${coordinates.lon}`)
-    
-    return coordinates
-  } catch (error) {
-    console.error(`Failed to geocode "${locationString}":`, error)
-    geocodingCache[cacheKey] = null
-    return null
-  }
+    // Add to queue
+    requestQueue.push(processRequest)
+    processQueue()
+  })
 }
 
 /**
