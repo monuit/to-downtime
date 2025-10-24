@@ -47,36 +47,75 @@ export const fetchAllDisruptionData = async (): Promise<Disruption[]> => {
     
     // Map database format to frontend Disruption type
     // API now returns camelCase field names, so we can use them directly
-    return result.data.map((d: any) => ({
-      id: d.externalId || d.external_id,
-      type: d.type,
-      severity: d.severity,
-      title: d.title,
-      description: d.description,
-      affectedLines: d.affectedLines || d.affected_lines || [],
-      timestamp: new Date(d.createdAt || d.created_at).getTime(),
-      sourceApi: d.sourceApi || d.source_api,
-      sourceUrl: d.sourceUrl || d.source_url,
-      rawData: d.rawData || d.raw_data,
-      lastFetchedAt: d.lastFetchedAt ? new Date(d.lastFetchedAt).getTime() : (d.last_fetched_at ? new Date(d.last_fetched_at).getTime() : undefined),
-      
-      // Geographic and TCL data (camelCase from API)
-      coordinates: d.coordinates || undefined,
-      district: d.district || undefined,
-      addressFull: d.addressFull || d.address_full || undefined,
-      addressRange: d.addressRange || d.address_range || undefined,
-      hasTclMatch: d.hasTclMatch || d.has_tcl_match || false,
-      tclMatches: d.tclMatches || d.tcl_matches || [],
-      
-      // Work categorization fields (now from database columns, not rawData)
-      workType: d.workType || d.work_type || undefined,
-      scheduleType: d.scheduleType || d.schedule_type || undefined,
-      duration: d.duration || undefined,
-      impactLevel: d.impactLevel || d.impact_level || undefined,
-      onsiteHours: d.onsiteHours || d.onsite_hours || undefined,
-      roadClass: d.roadClass || d.road_class || undefined,
-      contractor: d.contractor || undefined,
-    }))
+    return result.data.map((d: any) => {
+      const normalizeNumeric = (value: unknown): number | undefined => {
+        if (typeof value === 'number' && Number.isFinite(value)) {
+          return value
+        }
+        if (typeof value === 'string') {
+          const parsed = Number(value)
+          return Number.isFinite(parsed) ? parsed : undefined
+        }
+        return undefined
+      }
+
+      // Normalise coordinates regardless of how the API encoded them (camelCase, snake_case, strings)
+      const normalizedCoordinates = (() => {
+        const direct = d.coordinates
+        if (direct && (direct.lat ?? direct.lng ?? direct.lon) !== undefined) {
+          const lat = normalizeNumeric(direct.lat)
+          const lng = normalizeNumeric(direct.lng ?? direct.lon)
+          if (lat !== undefined && lng !== undefined) {
+            return { lat, lng }
+          }
+        }
+
+        const lat = normalizeNumeric(d.coordinatesLat ?? d.coordinates_lat ?? d.geocodedLat ?? d.geocoded_lat)
+        const lng = normalizeNumeric(d.coordinatesLng ?? d.coordinates_lng ?? d.geocodedLon ?? d.geocoded_lon ?? d.coordinatesLon ?? d.coordinates_lon)
+        if (lat !== undefined && lng !== undefined) {
+          return { lat, lng }
+        }
+
+        return undefined
+      })()
+
+      return {
+        id: d.externalId || d.external_id,
+        type: d.type,
+        severity: d.severity,
+        title: d.title,
+        description: d.description,
+        affectedLines: d.affectedLines || d.affected_lines || [],
+        timestamp: new Date(d.createdAt || d.created_at).getTime(),
+        sourceApi: d.sourceApi || d.source_api,
+        sourceUrl: d.sourceUrl || d.source_url,
+        rawData: d.rawData || d.raw_data,
+        lastFetchedAt: d.lastFetchedAt ? new Date(d.lastFetchedAt).getTime() : (d.last_fetched_at ? new Date(d.last_fetched_at).getTime() : undefined),
+
+        // Geographic and TCL data (camelCase from API)
+        coordinates: normalizedCoordinates,
+        coordinatesLat: normalizeNumeric(d.coordinatesLat ?? d.coordinates_lat),
+        coordinatesLng: normalizeNumeric(d.coordinatesLng ?? d.coordinates_lng),
+        geocodedLat: normalizeNumeric(d.geocodedLat ?? d.geocoded_lat),
+        geocodedLon: normalizeNumeric(d.geocodedLon ?? d.geocoded_lon),
+        geocodedName: d.geocodedName || d.geocoded_name || undefined,
+        geocodedSource: d.geocodedSource || d.geocoded_source || undefined,
+        district: d.district || undefined,
+        addressFull: d.addressFull || d.address_full || undefined,
+        addressRange: d.addressRange || d.address_range || undefined,
+        hasTclMatch: d.hasTclMatch || d.has_tcl_match || false,
+        tclMatches: d.tclMatches || d.tcl_matches || [],
+
+        // Work categorization fields (now from database columns, not rawData)
+        workType: d.workType || d.work_type || undefined,
+        scheduleType: d.scheduleType || d.schedule_type || undefined,
+        duration: d.duration || undefined,
+        impactLevel: d.impactLevel || d.impact_level || undefined,
+        onsiteHours: d.onsiteHours || d.onsite_hours || undefined,
+        roadClass: d.roadClass || d.road_class || undefined,
+        contractor: d.contractor || undefined,
+      }
+    })
 
   } catch (error) {
     console.error('❌ Error fetching disruption data:', error)
