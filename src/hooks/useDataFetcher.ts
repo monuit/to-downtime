@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import type { Disruption } from '../store/disruptions'
 import { fetchAllDisruptionData } from '../server/api-client'
 
+const DEBUG = import.meta.env.VITE_DEBUG === 'true'
+
 interface DataFetcherResult {
   data: Disruption[] | null
   loading: boolean
@@ -69,7 +71,7 @@ export const useDataFetcher = (): DataFetcherResult => {
         const nextInterval = getRandomRefreshInterval()
         setNextRefreshTime(new Date(now.getTime() + nextInterval))
         setError(null)
-        console.log(`📊 Loaded ${result.length} disruptions, next refresh in ${Math.floor(nextInterval / 1000)}s`)
+        if (DEBUG) console.log(`📊 Loaded ${result.length} disruptions, next refresh in ${Math.floor(nextInterval / 1000)}s`)
         
         // Schedule next fetch
         timeoutId = setTimeout(fetchData, nextInterval)
