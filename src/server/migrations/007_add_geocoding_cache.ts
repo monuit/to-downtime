@@ -47,16 +47,29 @@ export const up = async (pool: Pool): Promise<void> => {
         ADD COLUMN geocoded_name VARCHAR(255);
       `)
 
-      // Add index for faster spatial queries
+      console.log('  ✅ Geocoding cache columns added')
+    } else {
+      console.log('  ⏭️  Geocoding cache columns already exist, skipping...')
+    }
+
+    // Add index for faster spatial queries (check if it exists first)
+    const checkIndexQuery = `
+      SELECT 1 
+      FROM pg_indexes 
+      WHERE indexname = 'idx_disruptions_coordinates'
+    `
+    const { rows: indexRows } = await client.query(checkIndexQuery)
+
+    if (indexRows.length === 0) {
+      console.log('  ➕ Creating spatial index...')
       await client.query(`
         CREATE INDEX idx_disruptions_coordinates 
         ON disruptions(geocoded_lat, geocoded_lon) 
         WHERE geocoded_lat IS NOT NULL AND geocoded_lon IS NOT NULL;
       `)
-
-      console.log('  ✅ Geocoding cache columns added')
+      console.log('  ✅ Spatial index created')
     } else {
-      console.log('  ⏭️  Geocoding cache columns already exist, skipping...')
+      console.log('  ⏭️  Spatial index already exists, skipping...')
     }
 
     await client.query('COMMIT')
