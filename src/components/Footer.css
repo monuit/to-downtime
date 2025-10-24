@@ -100,3 +100,120 @@
     display: none;
   }
 }
+
+/* Help/About Button */
+.footer-icon-button {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid #222;
+  color: #999;
+  font-size: 18px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  margin-left: 8px;
+}
+
+.footer-icon-button:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: #667eea;
+  color: #e2e8f0;
+  transform: translateY(-1px);
+}
+
+/* About Modal */
+.about-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  padding: 20px;
+}
+
+.about-modal {
+  background: #111;
+  border: 1px solid #222;
+  border-radius: 12px;
+  max-width: 600px;
+  width: 100%;
+  padding: 32px;
+  position: relative;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+
+.about-modal h2 {
+  margin: 0 0 20px 0;
+  color: #e2e8f0;
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.about-content {
+  color: #a0aec0;
+  line-height: 1.6;
+  font-size: 15px;
+}
+
+.about-content p {
+  margin: 0 0 16px 0;
+}
+
+.about-content a {
+  color: #667eea;
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+.about-content a:hover {
+  color: #764ba2;
+}
+
+.about-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  background: none;
+  border: none;
+  color: #666;
+  font-size: 24px;
+  cursor: pointer;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.about-close:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #e2e8f0;
+}
+
+@media (max-width: 768px) {
+  .about-modal {
+    padding: 24px;
+    max-width: 90%;
+  }
+
+  .about-modal h2 {
+    font-size: 20px;
+  }
+
+  .about-content {
+    font-size: 14px;
+  }
+}
