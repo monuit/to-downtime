@@ -13,9 +13,16 @@
 
 .filter-header {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
+  gap: 12px;
   margin-bottom: 16px;
+}
+
+.filter-header-content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
 }
 
 .filter-header h3 {
@@ -23,6 +30,28 @@
   font-size: 18px;
   font-weight: 700;
   color: #fff;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.filter-results-count {
+  font-size: 12px;
+  color: #666;
+  display: flex;
+  align-items: baseline;
+  gap: 0;
+}
+
+.count-highlight {
+  font-size: 12px;
+  font-weight: 600;
+  color: #666;
+}
+
+.count-total {
+  font-size: 12px;
+  color: #666;
 }
 
 .filter-actions {
@@ -52,16 +81,18 @@
   background: #111;
   color: #fff;
   border: none;
-  width: 32px;
-  height: 32px;
-  border-radius: 6px;
-  font-size: 20px;
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  font-size: 14px;
   font-weight: 700;
   cursor: pointer;
   transition: all 0.2s;
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
+  margin-top: 2px;
 }
 
 .toggle-btn:hover {
@@ -135,6 +166,8 @@
   transition: background 0.2s;
   font-size: 14px;
   color: #fff;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 .checkbox-label:hover {
@@ -151,6 +184,38 @@
 .checkbox-label span {
   flex: 1;
   user-select: none;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  hyphens: auto;
+}
+
+.filter-option-text {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+}
+
+.option-name {
+  flex: 1;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  hyphens: auto;
+  text-align: left;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.option-count {
+  font-size: 11px;
+  color: #666;
+  font-weight: 500;
+  flex-shrink: 0;
+  white-space: nowrap;
+  text-align: right;
+  min-width: 30px;
 }
 
 .more-options {

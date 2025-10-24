@@ -1,16 +1,29 @@
 import { useState } from 'react'
-import { useDisruptionStore } from '../store/disruptions'
+import { useDisruptionStore, type Disruption } from '../store/disruptions'
 import { StatusBar } from './StatusBar'
 import { Legend } from './Legend'
+import type { FilterOptions } from './FilterPanel'
 import '../styles/Canvas.css'
 
-export const Canvas: React.FC = () => {
-  const disruptions = useDisruptionStore((state) => state.disruptions)
+interface CanvasProps {
+  disruptions?: Disruption[]
+  filters?: FilterOptions
+  onFiltersChange?: (filters: FilterOptions) => void
+}
+
+export const Canvas: React.FC<CanvasProps> = ({ disruptions: propDisruptions, filters, onFiltersChange }) => {
+  const storeDisruptions = useDisruptionStore((state) => state.disruptions)
+  const disruptions = propDisruptions || storeDisruptions
   const setSelectedDisruption = useDisruptionStore((state) => state.setSelectedDisruption)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [sortBy, setSortBy] = useState<'time' | 'severity'>('severity')
-  const [filterSeverity, setFilterSeverity] = useState<string[]>(['severe', 'moderate', 'minor'])
-  const [filterType, setFilterType] = useState<string[]>([])
+  
+  // Use local filters if no parent filters provided (backward compatibility)
+  const [localFilterSeverity, setLocalFilterSeverity] = useState<string[]>(['severe', 'moderate', 'minor'])
+  const [localFilterType, setLocalFilterType] = useState<string[]>([])
+  
+  const filterSeverity = localFilterSeverity
+  const filterType = localFilterType
 
   const typeEmojis: Record<string, string> = {
     subway: '🚇',
@@ -79,7 +92,7 @@ export const Canvas: React.FC = () => {
   const allTypes = Array.from(new Set(disruptions.map(d => d.type)))
 
   const toggleSeverityFilter = (severity: string) => {
-    setFilterSeverity(prev =>
+    setLocalFilterSeverity(prev =>
       prev.includes(severity)
         ? prev.filter(s => s !== severity)
         : [...prev, severity]
@@ -87,11 +100,35 @@ export const Canvas: React.FC = () => {
   }
 
   const toggleTypeFilter = (type: string) => {
-    setFilterType(prev =>
+    setLocalFilterType(prev =>
       prev.includes(type)
         ? prev.filter(t => t !== type)
         : [...prev, type]
     )
+  }
+
+  // Handler to apply filter from detail badges
+  const handleFilterClick = (filterType: 'workType' | 'impactLevel' | 'scheduleType' | 'duration', value: string) => {
+    if (!filters || !onFiltersChange) return
+    
+    const updatedFilters = { ...filters }
+    
+    switch (filterType) {
+      case 'workType':
+        updatedFilters.workTypes = [value]
+        break
+      case 'impactLevel':
+        updatedFilters.impactLevels = [value as 'Low' | 'Medium' | 'High']
+        break
+      case 'scheduleType':
+        updatedFilters.scheduleTypes = [value as '24/7' | 'Weekdays Only' | 'Weekends Included']
+        break
+      case 'duration':
+        updatedFilters.durations = [value]
+        break
+    }
+    
+    onFiltersChange(updatedFilters)
   }
 
   return (
@@ -156,7 +193,7 @@ export const Canvas: React.FC = () => {
 
       {/* Compact Timeline Feed */}
       <div className="disruptions-feed">
-        {sorted.map((disruption) => {
+        {sorted.map((disruption, index) => {
           const emoji = typeEmojis[disruption.type] || '⚠️'
           const timeStr = formatTime(disruption.timestamp)
           const lineDisplay = getLineDisplay(disruption)
@@ -168,6 +205,9 @@ export const Canvas: React.FC = () => {
               key={disruption.id}
               className={`disruption-item ${disruption.severity} ${isExpanded ? 'expanded' : ''}`}
               onClick={() => toggleExpand(disruption.id)}
+              style={{
+                animationDelay: `${Math.min(index * 0.03, 0.6)}s`
+              }}
             >
               <div className="item-main">
                 <div className="item-indicator" style={{ background: color }}></div>
@@ -181,6 +221,66 @@ export const Canvas: React.FC = () => {
 
               {isExpanded && (
                 <div className="item-details">
+                  {disruption.workType && (
+                    <div className="detail-row">
+                      <span className="detail-label">Work Type:</span>
+                      <span 
+                        className="detail-value clickable-badge" 
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleFilterClick('workType', disruption.workType!)
+                        }}
+                        title="Click to filter by this work type"
+                      >
+                        {disruption.workType}
+                      </span>
+                    </div>
+                  )}
+                  {disruption.impactLevel && (
+                    <div className="detail-row">
+                      <span className="detail-label">Impact:</span>
+                      <span 
+                        className="detail-value clickable-badge" 
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleFilterClick('impactLevel', disruption.impactLevel!)
+                        }}
+                        title="Click to filter by this impact level"
+                      >
+                        {disruption.impactLevel}
+                      </span>
+                    </div>
+                  )}
+                  {disruption.scheduleType && (
+                    <div className="detail-row">
+                      <span className="detail-label">Schedule:</span>
+                      <span 
+                        className="detail-value clickable-badge" 
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleFilterClick('scheduleType', disruption.scheduleType!)
+                        }}
+                        title="Click to filter by this schedule"
+                      >
+                        {disruption.scheduleType}
+                      </span>
+                    </div>
+                  )}
+                  {disruption.duration && (
+                    <div className="detail-row">
+                      <span className="detail-label">Duration:</span>
+                      <span 
+                        className="detail-value clickable-badge" 
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleFilterClick('duration', disruption.duration!)
+                        }}
+                        title="Click to filter by this duration"
+                      >
+                        {disruption.duration}
+                      </span>
+                    </div>
+                  )}
                   <div className="detail-row">
                     <span className="detail-label">Type:</span>
                     <span className="detail-value">{disruption.type}</span>

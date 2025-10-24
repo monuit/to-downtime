@@ -15,6 +15,9 @@ interface FilterPanelProps {
   onFiltersChange: (filters: FilterOptions) => void;
   availableWorkTypes: string[];
   disruptions: Disruption[];
+  filteredCount?: number;
+  totalCount?: number;
+  isFiltering?: boolean;
 }
 
 const DURATION_OPTIONS = [
@@ -37,12 +40,44 @@ const IMPACT_OPTIONS: ('Low' | 'Medium' | 'High')[] = [
   'High',
 ];
 
-export function FilterPanel({ filters, onFiltersChange, availableWorkTypes, disruptions }: FilterPanelProps) {
+export function FilterPanel({ filters, onFiltersChange, availableWorkTypes, disruptions, filteredCount, totalCount, isFiltering }: FilterPanelProps) {
   const [isExpanded, setIsExpanded] = useState(true);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(-1);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const suggestionsRef = useRef<HTMLDivElement>(null);
+
+  // Count disruptions per filter option
+  const getCounts = useMemo(() => {
+    const workTypeCounts: Record<string, number> = {};
+    const scheduleCounts: Record<string, number> = {};
+    const durationCounts: Record<string, number> = {};
+    const impactCounts: Record<string, number> = {};
+
+    disruptions.forEach(d => {
+      // Work type counts
+      if (d.workType) {
+        workTypeCounts[d.workType] = (workTypeCounts[d.workType] || 0) + 1;
+      }
+
+      // Schedule counts
+      if (d.scheduleType) {
+        scheduleCounts[d.scheduleType] = (scheduleCounts[d.scheduleType] || 0) + 1;
+      }
+
+      // Duration counts
+      if (d.duration) {
+        durationCounts[d.duration] = (durationCounts[d.duration] || 0) + 1;
+      }
+
+      // Impact counts
+      if (d.impactLevel) {
+        impactCounts[d.impactLevel] = (impactCounts[d.impactLevel] || 0) + 1;
+      }
+    });
+
+    return { workTypeCounts, scheduleCounts, durationCounts, impactCounts };
+  }, [disruptions]);
 
   // Extract unique street names from disruptions
   const streetNames = useMemo(() => {
@@ -176,20 +211,37 @@ export function FilterPanel({ filters, onFiltersChange, availableWorkTypes, disr
   return (
     <div className={`filter-panel ${isExpanded ? 'expanded' : 'collapsed'}`}>
       <div className="filter-header">
-        <h3>Filters</h3>
+        <div className="filter-header-content">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <button 
+              className="toggle-btn" 
+              onClick={() => setIsExpanded(!isExpanded)}
+              aria-label={isExpanded ? 'Collapse filters' : 'Expand filters'}
+            >
+              {isExpanded ? '−' : '+'}
+            </button>
+            <h3>Filters</h3>
+          </div>
+          {filteredCount !== undefined && totalCount !== undefined && (
+            <div className="filter-results-count">
+              ({filteredCount}
+              {filteredCount !== totalCount && (
+                <span className="count-total"> of {totalCount}</span>
+              )}
+              {isFiltering && (
+                <span style={{ marginLeft: '4px' }}>
+                  filtering...
+                </span>
+              )})
+            </div>
+          )}
+        </div>
         <div className="filter-actions">
           {hasActiveFilters && (
             <button className="clear-btn" onClick={clearAllFilters}>
               Clear All
             </button>
           )}
-          <button 
-            className="toggle-btn" 
-            onClick={() => setIsExpanded(!isExpanded)}
-            aria-label={isExpanded ? 'Collapse filters' : 'Expand filters'}
-          >
-            {isExpanded ? '−' : '+'}
-          </button>
         </div>
       </div>
 
@@ -231,7 +283,7 @@ export function FilterPanel({ filters, onFiltersChange, availableWorkTypes, disr
             <label className="filter-label">
               🚧 Work Type 
               {filters.workTypes.length > 0 && (
-                <span className="filter-count">({filters.workTypes.length})</span>
+                <span className="filter-count">({filters.workTypes.length} of {availableWorkTypes.length})</span>
               )}
             </label>
             <div className="filter-options">
@@ -242,7 +294,10 @@ export function FilterPanel({ filters, onFiltersChange, availableWorkTypes, disr
                     checked={filters.workTypes.includes(workType)}
                     onChange={() => toggleWorkType(workType)}
                   />
-                  <span>{workType}</span>
+                  <span className="filter-option-text">
+                    <span className="option-name">{workType}</span>
+                    <span className="option-count">({getCounts.workTypeCounts[workType] || 0})</span>
+                  </span>
                 </label>
               ))}
               {availableWorkTypes.length > 10 && (
@@ -256,7 +311,10 @@ export function FilterPanel({ filters, onFiltersChange, availableWorkTypes, disr
                           checked={filters.workTypes.includes(workType)}
                           onChange={() => toggleWorkType(workType)}
                         />
-                        <span>{workType}</span>
+                        <span className="filter-option-text">
+                          <span className="option-name">{workType}</span>
+                          <span className="option-count">({getCounts.workTypeCounts[workType] || 0})</span>
+                        </span>
                       </label>
                     ))}
                   </div>
@@ -270,7 +328,7 @@ export function FilterPanel({ filters, onFiltersChange, availableWorkTypes, disr
             <label className="filter-label">
               ⏰ Schedule
               {filters.scheduleTypes.length > 0 && (
-                <span className="filter-count">({filters.scheduleTypes.length})</span>
+                <span className="filter-count">({filters.scheduleTypes.length} of {SCHEDULE_OPTIONS.length})</span>
               )}
             </label>
             <div className="filter-options">
@@ -281,7 +339,10 @@ export function FilterPanel({ filters, onFiltersChange, availableWorkTypes, disr
                     checked={filters.scheduleTypes.includes(schedule)}
                     onChange={() => toggleScheduleType(schedule)}
                   />
-                  <span>{schedule}</span>
+                  <span className="filter-option-text">
+                    <span className="option-name">{schedule}</span>
+                    <span className="option-count">({getCounts.scheduleCounts[schedule] || 0})</span>
+                  </span>
                 </label>
               ))}
             </div>
@@ -292,7 +353,7 @@ export function FilterPanel({ filters, onFiltersChange, availableWorkTypes, disr
             <label className="filter-label">
               ⏱️ Duration
               {filters.durations.length > 0 && (
-                <span className="filter-count">({filters.durations.length})</span>
+                <span className="filter-count">({filters.durations.length} of {DURATION_OPTIONS.length})</span>
               )}
             </label>
             <div className="filter-options">
@@ -303,7 +364,10 @@ export function FilterPanel({ filters, onFiltersChange, availableWorkTypes, disr
                     checked={filters.durations.includes(duration)}
                     onChange={() => toggleDuration(duration)}
                   />
-                  <span>{duration}</span>
+                  <span className="filter-option-text">
+                    <span className="option-name">{duration}</span>
+                    <span className="option-count">({getCounts.durationCounts[duration] || 0})</span>
+                  </span>
                 </label>
               ))}
             </div>
@@ -314,7 +378,7 @@ export function FilterPanel({ filters, onFiltersChange, availableWorkTypes, disr
             <label className="filter-label">
               📊 Impact Level
               {filters.impactLevels.length > 0 && (
-                <span className="filter-count">({filters.impactLevels.length})</span>
+                <span className="filter-count">({filters.impactLevels.length} of {IMPACT_OPTIONS.length})</span>
               )}
             </label>
             <div className="filter-options">
@@ -325,7 +389,10 @@ export function FilterPanel({ filters, onFiltersChange, availableWorkTypes, disr
                     checked={filters.impactLevels.includes(level)}
                     onChange={() => toggleImpactLevel(level)}
                   />
-                  <span>{level}</span>
+                  <span className="filter-option-text">
+                    <span className="option-name">{level}</span>
+                    <span className="option-count">({getCounts.impactCounts[level] || 0})</span>
+                  </span>
                 </label>
               ))}
             </div>

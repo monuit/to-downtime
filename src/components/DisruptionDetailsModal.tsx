@@ -108,21 +108,6 @@ export function DisruptionDetailsModal({ disruption, onClose }: DisruptionDetail
             <section className="detail-section highlight">
               <h3>📍 Precise Address</h3>
               <p className="address-full">{disruption.addressFull}</p>
-              {disruption.tclMatches && disruption.tclMatches.length > 0 && (
-                <div className="tcl-matches">
-                  {disruption.tclMatches.map((match, idx) => (
-                    <div key={idx} className="tcl-match-item">
-                      <span className="tcl-street">{match.street_name}</span>
-                      {match.address_range && (
-                        <span className="tcl-range"> ({match.address_range})</span>
-                      )}
-                      <span className={`tcl-confidence ${match.match_type}`}>
-                        {match.match_type === 'exact' ? '✓ Exact' : '≈ Fuzzy'} ({(match.confidence * 100).toFixed(0)}%)
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
             </section>
           )}
 
