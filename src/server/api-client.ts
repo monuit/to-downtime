@@ -11,6 +11,8 @@ import { Disruption } from '../store/disruptions'
  * NO MOCK DATA - All data from real Toronto Open Data via CKAN API
  */
 
+const DEBUG = import.meta.env.VITE_DEBUG === 'true'
+
 /**
  * Fetch all disruptions from database
  * Returns data stored by background ETL process
@@ -21,7 +23,7 @@ export const fetchAllDisruptionData = async (): Promise<Disruption[]> => {
     // Override with VITE_API_URL in development if needed
     const apiUrl = import.meta.env.VITE_API_URL || '/api/disruptions'
     
-    console.log(`📡 Fetching disruptions from ${apiUrl}...`)
+    if (DEBUG) console.log(`📡 Fetching disruptions from ${apiUrl}...`)
     
     const response = await fetch(apiUrl, {
       method: 'GET',
@@ -41,7 +43,7 @@ export const fetchAllDisruptionData = async (): Promise<Disruption[]> => {
       throw new Error(result.error || 'API returned success=false')
     }
 
-    console.log(`✅ Fetched ${result.count} disruptions from database`)
+    if (DEBUG) console.log(`✅ Fetched ${result.count} disruptions from database`)
     
     // Map database format to frontend Disruption type
     return result.data.map((d: any) => ({
@@ -94,7 +96,7 @@ export const triggerSync = async (): Promise<{
   try {
     const apiUrl = import.meta.env.VITE_API_URL || '/api/sync'
     
-    console.log(`🔄 Triggering manual sync from ${apiUrl}...`)
+    if (DEBUG) console.log(`🔄 Triggering manual sync from ${apiUrl}...`)
     
     const response = await fetch(apiUrl, {
       method: 'POST',
@@ -109,7 +111,7 @@ export const triggerSync = async (): Promise<{
 
     const result = await response.json()
     
-    console.log(`✅ Sync completed:`, result)
+    if (DEBUG) console.log(`✅ Sync completed:`, result)
     return {
       success: true,
       stats: result.stats || { fetched: result.fetched || 0 },
