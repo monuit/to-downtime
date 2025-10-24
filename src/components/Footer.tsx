@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { Legend } from './Legend'
 import './Footer.css'
 
 interface FooterProps {
@@ -103,47 +104,53 @@ export const Footer: React.FC<FooterProps> = ({ lastUpdated, loading, nextRefres
   return (
     <footer className="app-footer">
       <div className="footer-content">
-        <div className="footer-section">
-          <p className="footer-label">Last Updated</p>
-          <p className="footer-time">
-            {loading ? 'Updating...' : formatTime(lastUpdated)}
-          </p>
-        </div>
-        <div className="footer-divider"></div>
-        <div className="footer-section">
-          <p className="footer-label">Data Freshness</p>
-          <div style={{ 
-            display: 'flex', 
-            alignItems: 'center', 
-            gap: '8px',
-            fontFamily: "'Geist Mono', monospace",
-            fontWeight: 700,
-            fontSize: '12px'
-          }}>
-            <div style={{
-              width: '10px',
-              height: '10px',
-              borderRadius: '50%',
-              backgroundColor: getFreshnessColor(),
-              boxShadow: `0 0 10px ${getFreshnessColor()}`,
-              transition: 'all 0.3s ease'
-            }}></div>
-            <span style={{ color: getFreshnessColor(), transition: 'color 0.3s ease' }}>
-              {loading ? 'Updating...' : getFreshnessLabel()}
-            </span>
-            <span style={{ color: '#666', marginLeft: '4px' }}>
-              ({countdown})
-            </span>
+        <div style={{ flex: 1 }}></div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+          <div className="footer-section">
+            <p className="footer-label">Last Updated</p>
+            <p className="footer-time">
+              {loading ? 'Updating...' : formatTime(lastUpdated)}
+            </p>
+          </div>
+          <div className="footer-divider"></div>
+          <div className="footer-section">
+            <p className="footer-label">Data Freshness</p>
+            <div style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '8px',
+              fontFamily: "'Geist Mono', monospace",
+              fontWeight: 700,
+              fontSize: '12px'
+            }}>
+              <div style={{
+                width: '10px',
+                height: '10px',
+                borderRadius: '50%',
+                backgroundColor: getFreshnessColor(),
+                boxShadow: `0 0 10px ${getFreshnessColor()}`,
+                transition: 'all 0.3s ease'
+              }}></div>
+              <span style={{ color: getFreshnessColor(), transition: 'color 0.3s ease' }}>
+                {loading ? 'Updating...' : getFreshnessLabel()}
+              </span>
+              <span style={{ color: '#666', marginLeft: '4px' }}>
+                ({countdown})
+              </span>
+            </div>
+          </div>
+          <div className="footer-divider"></div>
+          <div className="footer-section">
+            <p className="footer-label">Data Sources</p>
+            <div className="footer-links">
+              <a href="https://open.toronto.ca/" target="_blank" rel="noopener noreferrer">
+                Open Data Toronto
+              </a>
+            </div>
           </div>
         </div>
-        <div className="footer-divider"></div>
-        <div className="footer-section">
-          <p className="footer-label">Data Sources</p>
-          <div className="footer-links">
-            <a href="https://open.toronto.ca/" target="_blank" rel="noopener noreferrer">
-              Open Data Toronto
-            </a>
-          </div>
+        <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-end' }}>
+          <Legend />
         </div>
       </div>
     </footer>

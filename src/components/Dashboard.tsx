@@ -1,11 +1,16 @@
 import { useState, useMemo, useEffect } from 'react'
-import { useDisruptionStore } from '../store/disruptions'
+import { useDisruptionStore, type Disruption } from '../store/disruptions'
 import '../styles/Dashboard.css'
 
 type TimeFilter = 'active' | 'upcoming' | 'all'
 
-export const Dashboard: React.FC = () => {
-  const disruptions = useDisruptionStore((state) => state.disruptions)
+interface DashboardProps {
+  disruptions?: Disruption[]
+}
+
+export const Dashboard: React.FC<DashboardProps> = ({ disruptions: propDisruptions }) => {
+  const storeDisruptions = useDisruptionStore((state) => state.disruptions)
+  const disruptions = propDisruptions || storeDisruptions
   const removeDisruption = useDisruptionStore((state) => state.removeDisruption)
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('active')
   const [showCauseIcons, setShowCauseIcons] = useState(true)

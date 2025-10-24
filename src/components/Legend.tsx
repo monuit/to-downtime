@@ -10,10 +10,9 @@ export const Legend: React.FC = () => {
         className="legend-toggle"
         onClick={() => setIsExpanded(!isExpanded)}
         aria-label="Toggle legend"
+        title="Show legend"
       >
         <span className="legend-icon">ℹ️</span>
-        <span className="legend-text">Legend</span>
-        <span className={`legend-arrow ${isExpanded ? 'expanded' : ''}`}>▼</span>
       </button>
 
       {isExpanded && (
