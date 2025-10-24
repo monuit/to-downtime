@@ -126,16 +126,38 @@ const calculateDuration = (startTime?: number, endTime?: number): string => {
 
 /**
  * Parse onsite hours from record
+ * Uses scheduleEveryday or individual day schedules
  */
 const parseOnsiteHours = (record: any): string | undefined => {
-  // Check various fields that might contain hours
+  // Check for everyday schedule first
+  if (record.scheduleEveryday) return record.scheduleEveryday
+  
+  // Build schedule from individual days
+  const daySchedules = [
+    record.scheduleMonday,
+    record.scheduleTuesday,
+    record.scheduleWednesday,
+    record.scheduleThursday,
+    record.scheduleFriday,
+    record.scheduleSaturday,
+    record.scheduleSunday
+  ].filter(Boolean)
+  
+  // If all days have same schedule, use that
+  if (daySchedules.length > 0) {
+    const uniqueSchedules = [...new Set(daySchedules)]
+    if (uniqueSchedules.length === 1) return uniqueSchedules[0]
+    
+    // If weekdays only (Mon-Fri)
+    if (daySchedules.length === 5 && !record.scheduleSaturday && !record.scheduleSunday) {
+      return `Mon-Fri: ${daySchedules[0]}`
+    }
+  }
+  
+  // Fallback to old fields
   if (record.onsiteHours) return record.onsiteHours
   if (record.workHours) return record.workHours
   if (record.hours) return record.hours
-  
-  // Infer from schedule type
-  if (record.scheduleType === '24/7') return '24/7'
-  if (record.scheduleType === 'Weekdays Only') return 'Mon-Fri 7am-7pm'
   
   return undefined
 }
@@ -231,13 +253,15 @@ const parseRoadRestriction = (record: any, sourceUrl: string): Disruption | null
     const district = record.district || record.area || undefined
     const roadClass = record.roadClass || record.road_class || undefined
     const contractor = record.contractor || undefined
-    const scheduleType = record.scheduleType as any || undefined
+    
+    // Use workPeriod as scheduleType (e.g., "Daily", "Weekdays", "Weekends")
+    const scheduleType = record.workPeriod || undefined
     const impactLevel = record.maxImpact as any || record.currImpact as any || undefined
     
-    // Calculate duration
+    // Calculate duration category from timestamps
     const duration = calculateDuration(startDate, endDate)
     
-    // Get onsite hours
+    // Get onsite hours from schedule fields
     const onsiteHours = parseOnsiteHours(record)
     
     // Geocode road
