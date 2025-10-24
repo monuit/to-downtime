@@ -35,6 +35,12 @@ const pool = new Pool(
       }
 )
 
+// Handle pool errors to prevent process crashes
+pool.on('error', (err, client) => {
+  console.error('⚠️  Unexpected database pool error:', err.message)
+  // Don't crash the process - let connection retry logic handle it
+})
+
 // Export pool for migrations
 export { pool }
 
