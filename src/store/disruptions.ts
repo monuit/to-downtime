@@ -28,7 +28,7 @@ export interface Disruption {
   roadClass?: string // Local Road, Major Arterial, Minor Arterial, Expressway
   workType?: string // Toronto Hydro, Watermain, Construction, etc.
   contractor?: string
-  scheduleType?: '24/7' | 'Weekdays Only' | 'Weekends Included'
+  scheduleType?: string // e.g., "Daily", "Weekdays", "Weekends", "24/7", etc.
   duration?: string // "< 1 day", "1-7 days", "1-4 weeks", "1-3 months", "3+ months"
   impactLevel?: 'Low' | 'Medium' | 'High'
   onsiteHours?: string // e.g., "Mon-Fri 7am-7pm", "24/7", etc.
